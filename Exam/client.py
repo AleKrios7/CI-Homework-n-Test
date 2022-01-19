@@ -9,15 +9,12 @@ import os
 import agent
 
 if len(argv) < 4:
-    print("You need the player name to start the game.")
-    #exit(-1)
-    playerName = "Test" # For debug
-    ip = HOST
-    port = PORT
+    print("Oh no")
+    exit(-1)
 else:
-    playerName = argv[3]
     ip = argv[1]
     port = int(argv[2])
+    playerName = argv[3] #self
 
 run = True
 
@@ -30,9 +27,10 @@ hintState = ("", "")
 def manageInput():
     global run
     global status
+
     while run:
         #if turn move
-        command = agent.move()
+        command = input()
         # Choose data to send
         if command == "exit":
             run = False
@@ -41,8 +39,6 @@ def manageInput():
             s.send(GameData.ClientPlayerStartRequest(playerName).serialize())
         elif command == "show" and status == statuses[1]:
             s.send(GameData.ClientGetGameStateRequest(playerName).serialize())
-            s.recv(data)
-            data = agent.management(data)
         elif command.split(" ")[0] == "discard" and status == statuses[1]:
             try:
                 cardStr = command.split(" ")
@@ -97,6 +93,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         print("Connection accepted by the server. Welcome " + playerName)
     print("[" + playerName + " - " + status + "]: ", end="")
     Thread(target=manageInput).start()
+    print("ready\n")
     while run:
         dataOk = False
         data = s.recv(DATASIZE)
