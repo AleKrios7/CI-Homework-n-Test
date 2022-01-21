@@ -93,7 +93,8 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         print("Connection accepted by the server. Welcome " + playerName)
     print("[" + playerName + " - " + status + "]: ", end="")
     Thread(target=manageInput).start()
-    print("ready\n")
+    firstTime=0
+
     while run:
         dataOk = False
         data = s.recv(DATASIZE)
@@ -106,47 +107,73 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         if type(data) is GameData.ServerPlayerStartRequestAccepted:
             dataOk = True
             print("Ready: " + str(data.acceptedStartRequests) + "/"  + str(data.connectedPlayers) + " players")
+            cards = 4 if data.connectedPlayers>3 else 5
+            
+            me = agent.Player(cards, argv[3], 1, data.connectedPlayers)
+            
             data = s.recv(DATASIZE)
             data = GameData.GameData.deserialize(data)
+
         if type(data) is GameData.ServerStartGameData:
             dataOk = True
             print("Game start!")
             s.send(GameData.ClientPlayerReadyData(playerName).serialize())
             status = statuses[1]
+            data = s.recv(DATASIZE)
+            data = GameData.GameData.deserialize(data)
+            
+
+            s.send(GameData.ClientGetGameStateRequest(playerName).serialize()) #show for start game
+            data = s.recv(DATASIZE)
+            data = GameData.GameData.deserialize(data)
+
         if type(data) is GameData.ServerGameStateData:
+            
             dataOk = True
-            print("Current player: " + data.currentPlayer)
-            print("Player hands: ")
-            for p in data.players:
-                print(p.toClientString())
-            print("Table cards: ")
-            for pos in data.tableCards:
-                print(pos + ": [ ")
-                for c in data.tableCards[pos]:
-                    print(c.toClientString() + " ")
-                print("]")
-            print("Discard pile: ")
-            for c in data.discardPile:
-                print("\t" + c.toClientString())            
-            print("Note tokens used: " + str(data.usedNoteTokens) + "/8")
-            print("Storm tokens used: " + str(data.usedStormTokens) + "/3")
+            
+            if firstTime == 0:
+                me.startgame(data)
+                firstTime+=1
+
+            else: 
+                me.update(data)
+                print("Current player: " + data.currentPlayer)
+                print("Player hands: ")
+                for p in data.players:
+                    print(p.toClientString())
+                print("Table cards: ")
+                for pos in data.tableCards:
+                    print(pos + ": [ ")
+                    for c in data.tableCards[pos]:
+                        print(c.toClientString() + " ")
+                    print("]")
+                print("Discard pile: ")
+                for c in data.discardPile:
+                    print("\t" + c.toClientString())            
+                print("Note tokens used: " + str(data.usedNoteTokens) + "/8")
+                print("Storm tokens used: " + str(data.usedStormTokens) + "/3")
+
         if type(data) is GameData.ServerActionInvalid:
             dataOk = True
             print("Invalid action performed. Reason:")
             print(data.message)
         if type(data) is GameData.ServerActionValid:
             dataOk = True
+            me.update(data)
             print("Action valid!")
             print("Current player: " + data.player)
         if type(data) is GameData.ServerPlayerMoveOk:
             dataOk = True
+            me.update(data)
             print("Nice move!")
             print("Current player: " + data.player)
         if type(data) is GameData.ServerPlayerThunderStrike:
             dataOk = True
+            me.update(data)
             print("OH NO! The Gods are unhappy with you!")
         if type(data) is GameData.ServerHintData:
             dataOk = True
+            me.update(data)
             print("Hint type: " + data.type)
             print("Player " + data.destination + " cards with value " + str(data.value) + " are:")
             for i in data.positions:
@@ -160,9 +187,8 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             print(data.score)
             print(data.scoreMessage)
             stdout.flush()
-            #run = False
-            print("Ready for a new game!")
+            run = False
+            print("GG")
         if not dataOk:
             print("Unknown or unimplemented data type: " +  str(type(data)))
         print("[" + playerName + " - " + status + "]: ", end="")
-        stdout.flush()

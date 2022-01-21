@@ -22,9 +22,13 @@ class Card(object):
             [-1,-1,-1,-1,-1]
         ], dtype="float")
         state=""     
-        
-        def calcProb(self, deck, mypos):
 
+        def mask(self, probs, deck):
+                res2 = np.ma.make_mask(probs)
+                res3 = np.ma.masked_array(deck, np.invert(res2), fill_value=0)
+                return res3.filled()
+        
+        def calcProb(self, deck):
             #calcolo probabilità cambiamento del deck (play/discard)
 
             #currentplayer
@@ -33,9 +37,10 @@ class Card(object):
             #discardPile = [card list of discarded cards] 
             #usedNoteToken = numero di hint dati 0-8
             #usedStormTokens = numero di errori 0-2 (a 3 la partita finisce)
-            print("lul")
-            
-            
+            tot = 0
+            m = self.mask(self.probs, deck)
+            tot = np.sum(m)
+            self.probs = m/tot
         
         def calcHint(self, hint, mypos, deck):
 
@@ -45,27 +50,21 @@ class Card(object):
             #hint.value            number or string (effective value)
             #hint.positions        array delle posizioni
 
-            def mask(probs, deck):
-                res2 = np.ma.make_mask(probs)
-                res3 = np.ma.masked_array(deck, np.invert(res2), fill_value=0)
-                return res3.filled()
-            
-
             if hint.type == "value":                            
                 if mypos in hint.positions:
                     self.value = hint.value
                     for i in range(5):
                         if(i != hint.value-1):
                             self.probs[i].fill(0)
-                    m = mask(self.probs, deck)
+                    m = self.mask(self.probs, deck)
                     tot = np.sum(m[hint.value-1])
                     self.probs[hint.value-1,:] = m[hint.value-1,:]/tot
                 else:
                     self.probs[hint.value-1].fill(0)
                     tot = 0
-                    m = mask(self.probs, deck)
+                    m = self.mask(self.probs, deck)
                     tot = np.sum(m)
-                    self.probs[:,:] = m[:,:]/tot
+                    self.probs = m/tot
             elif hint.type == "color":
                 if mypos in hint.positions:                             #if the card is the target is the card being processed
                     self.color = hint.value                             #update color of card (known)
@@ -74,46 +73,40 @@ class Card(object):
                             self.probs[:,i]=0                           #remove probabilities
                         else:
                             x=i
-                        m = mask(self.probs, deck)
+                        m = self.mask(self.probs, deck)
                     tot = np.sum(m[:, x])
                     self.probs[:, x] = m[:, x]/tot            #update probabilities
                 else:
                     i = colors.index(hint.value)
                     self.probs[:,i] = 0
                     tot = 0
-                    m = mask(self.probs, deck)
+                    m = self.mask(self.probs, deck)
                     tot = np.sum(m)
-                    self.probs[:,:] = m[:,:]/tot
+                    self.probs = m/tot
                     
 
 class Player(object):  
     hand = []
     name = ""
     isMe = -1
+    toServe = []
+    deckAvailableSelf = np.array([[3,3,3,3,3],[2,2,2,2,2],[2,2,2,2,2],[2,2,2,2,2],[1,1,1,1,1]], dtype="uint")
     
     global colors
-    global deckAvailableOthers
-
-    deckAvailableSelf = np.array([[3,3,3,3,3],[2,2,2,2,2],[2,2,2,2,2],[2,2,2,2,2],[1,1,1,1,1]], dtype="uint")
-
-    def __init__(self, cards, me, isMe) -> None:
+    #global deckAvailableOthers
+    
+    def __init__(self, cards, name, isMe, numPlayers) -> None:
         super().__init__()
-        self.name = me
+        self.name = name
         self.isMe = isMe
         for _ in range(cards):
             self.hand.append(Card())
+        
     
     def startgame(self, data):
-        deckAvailableOthers = np.array([[3,3,3,3,3],[2,2,2,2,2],[2,2,2,2,2],[2,2,2,2,2],[1,1,1,1,1]], dtype="uint")
-        self.deckAvailableSelf = deckAvailableOthers
         for key in data.players:
             for card in key.hand:
                 self.deckAvailableSelf[card.value-1, colors.index(card.color)] -= 1
-
-    def mngmnt(data):
-        if type(data) is GameData.ServerGameStateData:
-            print("lul")
-        return
 
     def play(index):
         print("To implement")
@@ -127,7 +120,8 @@ class Player(object):
     
     def update(self, data):  #entra qui se ricevo hint o se qualcuno/io gioco/scarto
                              #aggiorna saved decks
-        if(type(data) is GameData.ServerGameStateData):                         ##show has been called, update is needed
+        if(type(data) is GameData.ServerGameStateData):                         
+            ##show has been called, update is needed
             #TODO: modifica deck values using data
             #change single hand cards probabilities
 
@@ -137,9 +131,23 @@ class Player(object):
             #discardPile = [card list of discarded cards] 
             #usedNoteToken = numero di hint dati 0-8
             #usedStormTokens = numero di errori 0-2 (a 3 la partita finisce)
-            
+            for player in self.toServe:
+                card = data.players[player][-1]
+                self.deckAvailableSelf[card.value - 1, colors.index(card.color)]
+                self.toServe.pop(player)
             for i in range(len(self.hand)):
                 self.hand[i].calcProb(self.deckAvailableSelf)
+        elif(type(data) is GameData.ServerActionValid 
+            or type(data) is GameData.ServerPlayerThunderStrike
+            or type(data) is GameData.ServerPlayerMoveOk):
+            #action -> string di contenuto "discard"
+            #card -> {color, value}
+            #lastplayer -> string giocatore che ha giocato
+            #player -> giocatore che deve giocare
+
+            self.deckAvailableSelf[data.card.value - 1, colors.index(data.card.color)]
+            self.toServe.append(data.lastPlayer)
+
         elif(type(data) is GameData.ServerHintData and data.destination == self.name):  ##hint has been given, update local cards
             for i in range(len(self.hand)):
                 self.hand[i].calcHint(data, i, self.deckAvailableSelf)                  #need to update all cards and available cards
