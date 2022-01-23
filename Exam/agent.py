@@ -1,3 +1,5 @@
+from functools import cache
+from turtle import color
 import GameData
 import numpy as np
 
@@ -6,6 +8,7 @@ colors = ["red","white","blue","yellow","green"]
 table = [0,0,0,0,0]
 moveTypes = ["play","hint","discard"]
 deckAvailableOthers = np.array([[3,3,3,3,3],[2,2,2,2,2],[2,2,2,2,2],[2,2,2,2,2],[1,1,1,1,1]], dtype="uint")
+population = []
 
 class Card(object):
         def __init__(self) -> None:
@@ -22,10 +25,6 @@ class Card(object):
             [-1,-1,-1,-1,-1],
             [-1,-1,-1,-1,-1]
         ], dtype="float")
-        
-        critical=0
-        playable=0     
-        discardable=0
 
         def mask(self, probs, deck):
                 res2 = np.ma.make_mask(probs)
@@ -95,6 +94,15 @@ class Player(object):
     isMe = -1
     toServe = []
     deckAvailableSelf = np.array([[3,3,3,3,3],[2,2,2,2,2],[2,2,2,2,2],[2,2,2,2,2],[1,1,1,1,1]], dtype="uint")
+    teammates= []
+
+    states = np.array([   #row = value  column = color
+        [0,0,0,0,0],
+        [0,0,0,0,0],
+        [0,0,0,0,0],
+        [0,0,0,0,0],
+        [0,0,0,0,0]
+    ], dtype="uint")
     
     global colors
     global table
@@ -123,6 +131,25 @@ class Player(object):
         veryintelligentmove = "show"
         return veryintelligentmove
     
+    def newStates(self, i, j):
+        if(self.deckAvailableSelf[i,j] != 0):
+            if i+1<=table[j]:
+                crit = False
+            else :
+                crit = self.deckAvailableSelf[i][j]==1
+                play = (i == table[j])
+                if(not crit and not play): #discardable
+                    self.states[i,j] = 1
+                elif(crit and not play):   #critical no playable
+                    self.states[i,j] = 3
+                elif(play and not crit):   #playable not critical
+                    self.states[i,j] = 2
+                else:
+                    self.states[i,j] = 4   #playable and critical
+        else:
+            self.states[i,j] = 0           #not in game anymore :(
+                
+    
     def update(self, data):  #entra qui se ricevo hint o se qualcuno/io gioco/scarto
                              #aggiorna saved decks
         if(type(data) is GameData.ServerGameStateData):                         
@@ -137,16 +164,26 @@ class Player(object):
             #usedNoteToken = numero di hint dati 0-8
             #usedStormTokens = numero di errori 0-2 (a 3 la partita finisce)
             
+
+            count = len(self.toServe)
             for player in self.toServe:
                 card = [p for p in data.players if p.name == player][0].hand[-1]
                 #card = data.players['name'][player]['hand'][-1]
                 self.deckAvailableSelf[card.value - 1, colors.index(card.color)] -= 1
+                self.newStates(card.value - 1, colors.index(card.color))
                 self.toServe.pop(self.toServe.index(player))
-            for i in range(len(self.hand)):
-                self.hand[i].calcProb(self.deckAvailableSelf)
             
-            for t in data.tableCards:
-                table[colors.index(t.color)] = t.value
+            if(count > 0):
+                self.teammates=[]
+                for player in data.players:
+                    self.teammates.append(player.hand)
+                for i in range(len(self.hand)):
+                    self.hand[i].calcProb(self.deckAvailableSelf)
+                for t in data.tableCards.keys():
+                    if len(data.tableCards[t]):
+                        table[colors.index(t)] = data.tableCards[t][-1]
+            
+            
 
         elif(type(data) is GameData.ServerActionValid 
             or type(data) is GameData.ServerPlayerThunderStrike
@@ -157,6 +194,7 @@ class Player(object):
             #player -> giocatore che deve giocare
             if(data.lastPlayer == self.name):
                 self.deckAvailableSelf[data.card.value - 1, colors.index(data.card.color)] -= 1
+                self.newStates(data.card.value - 1, colors.index(data.card.color))
             else:
                 self.toServe.append(data.lastPlayer)
 
@@ -164,7 +202,84 @@ class Player(object):
         elif(type(data) is GameData.ServerHintData and data.destination == self.name):  ##hint has been given, update local cards
             for i in range(len(self.hand)):
                 self.hand[i].calcHint(data, i, self.deckAvailableSelf)                  #need to update all cards and available cards
-        
+
+
+    def findMoves(self):
+        global population
+
+        for card in self.hand:
+            if card.value!=0 and card.color!="":
+
+                if self.states[card.value-1, colors.index(card.color)]==2 or self.states[card.value-1, colors.index(card.color)]==4:
+                    move["card"]=self.hand.index(card)
+                    move["type"]="play"
+                    move["chance"]=1
+                    move["critical"]= self.states[card.value-1, colors.index(card.color)]==4
+                    population.append(move)
+                elif self.states[card.value-1, colors.index(card.color)]==1:
+                    move["card"]=self.hand.index(card)
+                    move["type"]="discard"
+                    move["chance"]=1
+                    population.append(move)
+            elif card.value!=0 and card.color=="":
+                cardTmp = card
+                for color in colors:
+                    cardTmp.color=color
+                    if self.states[cardTmp.value-1, colors.index(cardTmp.color)]==2 or self.states[cardTmp.value-1, colors.index(cardTmp.color)]==4:
+                        move["card"] = self.hand.index(card)
+                        move["type"] = "play"
+                        move["chance"] = card.probs[cardTmp.value-1, colors.index(cardTmp.color)]
+                        move["critical"] = self.states[cardTmp.value-1, colors.index(cardTmp.color)]==4
+                        population.append(move)
+                    elif self.states[cardTmp.value-1, colors.index(cardTmp.color)]==1:
+                        move["card"]=self.hand.index(card)
+                        move["type"]="discard"
+                        move["chance"]=card.probs[cardTmp.value-1, colors.index(cardTmp.color)]
+                        population.append(move)
+            elif card.value==0 and card.color!="":
+                cardTmp = card
+                for i in range(5):
+                    cardTmp.value=i
+                    if self.states[cardTmp.value-1, colors.index(cardTmp.color)]==2 or self.states[cardTmp.value-1, colors.index(cardTmp.color)]==4:
+                        move["card"] = self.hand.index(card)
+                        move["type"] = "play"
+                        move["chance"] = card.probs[cardTmp.value-1, colors.index(cardTmp.color)]
+                        move["critical"] = self.states[cardTmp.value-1, colors.index(cardTmp.color)]==4
+                        population.append(move)
+                    elif self.states[card.value-1, colors.index(cardTmp.color)]==1:
+                        move["card"]=self.hand.index(card)
+                        move["type"]="discard"
+                        move["chance"]=card.probs[cardTmp.value-1, colors.index(cardTmp.color)]
+                        population.append(move)
+            elif card.value==0 and card.color=="" and card.probs.min() == 0:
+                m = card.mask(card.probs, self.states)
+                cardTmp = card
+                for i in range(5):
+                    cardTmp.value=i
+                    if m[cardTmp.value-1, colors.index(cardTmp.color)]==2 or m[cardTmp.value-1, colors.index(cardTmp.color)]==4:
+                        move["card"] = self.hand.index(card)
+                        move["type"] = "play"
+                        move["chance"] = card.probs[cardTmp.value-1, colors.index(cardTmp.color)]
+                        move["critical"] = m[cardTmp.value-1, colors.index(cardTmp.color)]==4
+                        population.append(move)
+                    elif m[card.value-1, colors.index(cardTmp.color)]==1:
+                        move["card"]=self.hand.index(card)
+                        move["type"]="discard"
+                        move["chance"]=card.probs[cardTmp.value-1, colors.index(cardTmp.color)]
+                        population.append(move)
+                
+
+
+                return
+
+            move = {
+                "card":0,
+                "type":"",
+                "critical":0,
+                "chance":0,
+            }
+        return
+
                                                                                        #according to my information
         #discard commands
         #type(data) is GameData.ServerActionValid #discard
@@ -190,7 +305,7 @@ class Player(object):
 def isCritical(card, deck):
     global colors
     global table
-    if card.value>=table[colors.index(card.color)]:
+    if card.value<=table[colors.index(card.color)]:
         return False
     return deck[card.value -1][colors.index(card.color)]==1
 
@@ -201,3 +316,6 @@ def isPlayable(card):
     global colors
     global table
     return card.value == table[colors.index(card.color)]+1
+
+
+
