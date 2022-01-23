@@ -181,7 +181,7 @@ class Player(object):
                     self.hand[i].calcProb(self.deckAvailableSelf)
                 for t in data.tableCards.keys():
                     if len(data.tableCards[t]):
-                        table[colors.index(t)] = data.tableCards[t][-1]
+                        table[colors.index(t)] = data.tableCards[t][-1].value
             
             
 
