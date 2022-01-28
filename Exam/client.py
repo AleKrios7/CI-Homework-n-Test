@@ -133,7 +133,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             cards = 4 if len(data.players) > 3 else 5
             
             
-            me = agent.Player(cards, argv[3], 1, len(data.players))
+            me = agent.Player(cards, argv[3], 1)
             
 
             s.send(GameData.ClientPlayerReadyData(playerName).serialize())
