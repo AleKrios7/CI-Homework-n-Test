@@ -23,11 +23,39 @@ def selectMoves(population, hintMoves, hint, errors, hand, states):
     #    c = choice([1,0], 1, p)
 
 
-    playCard(population, hand, e)
+    population = playCard(population, hand, e, p)
+    hintMoves = sendHint(hintMoves, p)
 
-    sendHint(hintMoves)
+    sorted(population, key = lambda p: p["reward"], reverse = True)
+    sorted(hintMoves, key = lambda p: p["reward"], reverse = True)
 
-def playCard(population, hand, e):
+    availableMoves = population[0:3]
+    availableHints = hintMoves[0:3]
+    totalMoves = 0
+    totalHints = 0
+    probsMoves = []
+    probsHints = []
+    
+    for key in availableMoves:
+        totalMoves += key["reward"]
+
+    for key in availableHints:
+        totalHints += key["reward"]
+
+    for key in availableMoves:
+        probsMoves.append(key["reward"]/totalMoves)
+
+    for key in availableHints:
+        probsHints.append(key["reward"]/totalHints)
+
+
+    move = np.random.choice(availableMoves, 3, probsMoves)
+    move = np.random.choice(availableHints, 3, probsHints)
+    
+    
+    return move
+
+def playCard(population, hand, e, p):
     playprobs = np.array([   #row = value  column = color
         [-1,-1,-1,-1,-1],
         [-1,-1,-1,-1,-1],
@@ -45,30 +73,64 @@ def playCard(population, hand, e):
     points = 0
     errors = 0
     losePoints = 0
-    for key in population:
-        if key["critical"]==1:
-            losePoints = 6 - hand[key["card"]].value
-            total = key["chance"]*2-(1-key["chance"])*e*(losePoints+1)
-        else:
-            total = key["chance"]-(1-key["chance"])*e
-            total = key["critical"]*key["chance"] - (1-key["chance"])*e
 
-    return
+    for key in population:
+        if key["type"] == "play":
+            if key["critical"] == 1:
+                losePoints = 6 - key["card"].value
+                if key["value"] == 5:
+                    total = key["chance"]*(1 + p*2)*2-(1-key["chance"])*e*(losePoints+1)
+                else:
+                    total = key["chance"]*2-(1-key["chance"])*e*(losePoints+1)
+            else:
+                if key["value"] == 5:
+                    total = key["chance"]*(1+p*2)-(1-key["chance"])*e
+                else:
+                    total = key["chance"]-(1-key["chance"])*e
+        else:
+            if key["critical"] == 1:
+                losePoints = 6 - hand[key["card"]].value
+                total = key["chance"]*2*(1+2*p)-(1-key["chance"])*(losePoints+1)
+            else:
+                total = key["chance"]*(1+2*p)
+        
+        key["reward"] = total
+
+    return population
     
-def sendHint(hintMoves):
+def sendHint(hintMoves, p):
+    
     move = {
-                "moveType":0,
-                "hintType":0,
-                "player":"",
-                "value":0,
-                "cards":0,    
-                "critical":0
+            "type":"",
+            "hintType":"",
+            "player":"",
+            "value":0,
+            "cards":[],    
+            "critical":[],
+            "playable":[],
+            "cardValue":[],
+            "cardColor": []
             }
     criticalSignal = 0
     bonusPoints = 0
 
     for m in hintMoves:
-        a=0
+        tot = 0
+        pointsaved = 0
+        aff = 1
+        for i in range(len(m["cards"])):
+            if m["critical"][i] == 1 and m["playable"][i] == 1:
+                pointsaved += 6 - m["cardValue"] + 1 +2*p*(m["cardValue"] == 5)
+                
+            elif m["critical"][i] == 1:
+                pointsaved += 6 - m["cardValue"]
+            else:
+                pointsaved += 1 +2*p*(m["cardValue"] == 5)
+        tot += aff * pointsaved - 2*p
+        m["reward"] = tot
+    return hintMoves        
+        
+
          
     
     return

@@ -136,8 +136,7 @@ class Player(object):
         self.isMe = isMe
         for _ in range(cards):
             self.hand.append(Card())
-        
-    
+         
     def startgame(self, data):
         for key in data.players:
             name = key.name
@@ -148,17 +147,12 @@ class Player(object):
                     self.deckAvailableSelf[c.value-1, colors.index(c.color)] -= 1
                 self.teammates[name] = hand
                 
-
     def play(index):
         print("To implement")
 
     def discard(index):
         print("To implement")
-    
-    def move():
-        veryintelligentmove = "show"
-        return veryintelligentmove
-    
+  
     def newStates(self, i, j):
         if(self.deckAvailableSelf[i,j] != 0):
             if i+1<=table[j]:
@@ -176,8 +170,7 @@ class Player(object):
                     self.states[i,j] = 4   #playable and critical
         else:
             self.states[i,j] = 0           #not in game anymore :(
-                
-    
+  
     def update(self, data):  #entra qui se ricevo hint o se qualcuno/io gioco/scarto
                              #aggiorna saved decks
         global hint
@@ -246,38 +239,62 @@ class Player(object):
     def criticalHint(self):
 
         move = {
-                "moveType":0,
-                "hintType":0,
+                "type":"",
+                "hintType":"",
                 "player":"",
                 "value":0,
                 "cards":0,    
-                "critical":0
+                "critical":0,
+                "playable":0,
+                "cardValue":0,
+                "cardColor": ""
             }
 
         for key in self.teammates.keys():
             hand = self.teammates[key]
             for c in hand:
                 if self.states[c[0]-1,c[1]] > 2:
+
                     move["moveType"] = "hint"
                     move["player"] = key
                     move["cards"] = 1
                     move["critical"] = 1
+                    move["playable"] = 1 if self.states[c[0]-1,c[1]]==4 else 0
+                    move["cardValue"] = c[0]
+                    move["cardColor"] = c[1]
 
-                    if c[2].value!=0:
+                    if c[2].value==0:
                         move["hintType"] = "value" 
                         move["value"] = c[0]
-                        
-                    elif c[2].color!="":
+                        hintMoves.append(move)
+
+                        for hint in hintMoves:
+                            if hint["player"] == move["player"] and hint["hintType"] == move["hintType"] and hint["value"] == move["value"]:
+                                hint["cards"]+=1
+                                hint["critical"].append(1)
+                                hint["playable"].append(1 if self.states[c[0]-1,c[1]]==4 else 0)
+                                move["cardValue"].append(c[0])
+                                move["cardColor"].append(c[1])
+                            else:
+                                hintMoves.append(move)        
+
+                    if c[2].color=="":
                         move["hintType"] = "color"
                         move["value"] = c[1]
                         
+                        for hint in hintMoves:
+                            if hint["player"] == move["player"] and hint["hintType"] == move["hintType"] and hint["value"] == move["value"]:
+                                hint["cards"]+=1
+                                hint["critical"].append(1)
+                                hint["playable"].append(1 if self.states[c[0]-1,c[1]]==4 else 0)
+                                move["cardValue"].append(c[0])
+                                move["cardColor"].append(c[1])
+                            else:
+                                hintMoves.append(move) 
+                        
                     
 
-                    for hint in hintMoves:
-                        if hint["player"] == move["player"] and hint["hintType"] == move["hintType"] and hint["value"] == move["value"]:
-                            hint["cards"]+=1
-                        else:
-                            hintMoves.append(move)          
+                             
                     
         
         return
@@ -285,46 +302,69 @@ class Player(object):
     def playableHint(self):
     
         move = {
-                "moveType":0,
-                "hintType":0,
+                "type":"",
+                "hintType":"",
                 "player":"",
                 "value":0,
                 "cards":0,    
-                "critical":0
+                "critical":0,
+                "playable":0,
+                "cardValue":0,
+                "cardColor": ""
             }
 
         for key in self.teammates.keys():
             hand = self.teammates[key]
             for c in hand:
                 if self.states[c[0]-1,c[1]] == 2:
-                    move["moveType"] = "hint"
+                    move["type"] = "hint"
                     move["player"] = key
                     move["cards"] = 1
                     move["critical"] = 0
+                    move["playable"] = 1
+                    move["cardValue"] = c[0]
+                    move["cardColor"] = c[1]
 
-                    if c[2].value!=0:
+                    if c[2].value==0:
                         move["hintType"] = "value" 
                         move["value"] = c[0]
-                        
-                    elif c[2].color!="":
+
+                        for hint in hintMoves:
+                            if hint["player"] == move["player"] and hint["hintType"] == move["hintType"] and hint["value"] == move["value"]:
+                                hint["cards"]+=1
+                                hint["critical"].append(0)
+                                hint["playable"].append(1)
+                                move["cardValue"].append(c[0])
+                                move["cardColor"].append(c[1])
+                        else:
+                            hintMoves.append(move)
+
+                    if c[2].color=="":
                         move["hintType"] = "color"
                         move["value"] = c[1]
 
-                    for hint in hintMoves:
-                        if hint["player"] == move["player"] and hint["hintType"] == move["hintType"] and hint["value"] == move["value"]:
-                            hint["cards"]+=1
-                        else:
-                            hintMoves.append(move)          
+                        for hint in hintMoves:
+                            if hint["player"] == move["player"] and hint["hintType"] == move["hintType"] and hint["value"] == move["value"]:
+                                hint["cards"]+=1
+                                hint["critical"].append(0)
+                                hint["playable"].append(1)
+                                move["cardValue"].append(c[0])
+                                move["cardColor"].append(c[1])
+                            else:
+                                hintMoves.append(move)          
 
         return
 
     def findMoves(self):
         global population
+        population=[]
         move = {
                 "card":0,
                 "type":"",
                 "critical":0,
                 "chance":0,
+                "value": 0,
+                "color":""
             }
 
         for card in self.hand:
@@ -335,11 +375,15 @@ class Player(object):
                     move["type"]="play"
                     move["chance"]=1
                     move["critical"]= self.states[card.value-1, colors.index(card.color)]==4
+                    move["value"]=card.value
+                    move["color"]=card.color
                     population.append(move)
                 elif self.states[card.value-1, colors.index(card.color)]==1:
                     move["card"]=self.hand.index(card)
                     move["type"]="discard"
                     move["chance"]=1
+                    move["value"]=card.value
+                    move["color"]=card.color
                     population.append(move)
             elif card.value!=0 and card.color=="":
                 cardTmp = card
@@ -350,11 +394,15 @@ class Player(object):
                         move["type"] = "play"
                         move["chance"] = card.probs[cardTmp.value-1, colors.index(cardTmp.color)]
                         move["critical"] = self.states[cardTmp.value-1, colors.index(cardTmp.color)]==4
+                        move["value"]=card.value
+                        move["color"]=card.color
                         population.append(move)
                     elif self.states[cardTmp.value-1, colors.index(cardTmp.color)]==1:
                         move["card"]=self.hand.index(card)
                         move["type"]="discard"
                         move["chance"]=card.probs[cardTmp.value-1, colors.index(cardTmp.color)]
+                        move["value"]=card.value
+                        move["color"]=card.color
                         population.append(move)
             elif card.value==0 and card.color!="":
                 cardTmp = card
@@ -365,11 +413,15 @@ class Player(object):
                         move["type"] = "play"
                         move["chance"] = card.probs[cardTmp.value-1, colors.index(cardTmp.color)]
                         move["critical"] = self.states[cardTmp.value-1, colors.index(cardTmp.color)]==4
+                        move["value"]=card.value
+                        move["color"]=card.color
                         population.append(move)
                     elif self.states[card.value-1, colors.index(cardTmp.color)]==1:
                         move["card"]=self.hand.index(card)
                         move["type"]="discard"
                         move["chance"]=card.probs[cardTmp.value-1, colors.index(cardTmp.color)]
+                        move["value"]=card.value
+                        move["color"]=card.color
                         population.append(move)
             elif card.value==0 and card.color=="" and card.probs.min() == 0:
                 m = card.mask(card.probs, self.states)
@@ -381,15 +433,26 @@ class Player(object):
                         move["type"] = "play"
                         move["chance"] = card.probs[cardTmp.value-1, colors.index(cardTmp.color)]
                         move["critical"] = m[cardTmp.value-1, colors.index(cardTmp.color)]==4
+                        move["value"]=card.value
+                        move["color"]=card.color
                         population.append(move)
                     elif m[card.value-1, colors.index(cardTmp.color)]==1:
                         move["card"]=self.hand.index(card)
                         move["type"]="discard"
                         move["chance"]=card.probs[cardTmp.value-1, colors.index(cardTmp.color)]
+                        move["value"]=card.value
+                        move["color"]=card.color
                         population.append(move)
 
-    def play():
-        move = selectMoves(population, hintMoves, hint, errors)
+    def play(self):
+
+        self.findMoves()
+        self.playableHint()
+        self.criticalHint()
+        
+        move = selectMoves(population, hintMoves, hint, errors, self.hand, self.states)
+        
+        return move
 
 
     
