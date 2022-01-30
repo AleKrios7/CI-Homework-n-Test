@@ -25,11 +25,11 @@ def selectMoves(population, hintMoves, hint, errors, hand, states):
 
 
     population = playCard(population, hand, e, p)
-    sorted(population, key = lambda p: p["reward"], reverse = True)
+    population = sorted(population, key = lambda p: p["reward"], reverse = True)
     availableMoves.extend(population[0:3])
     if p != 0:
         hintMoves = sendHint(hintMoves, p)
-        sorted(hintMoves, key = lambda p: p["reward"], reverse = True)
+        hintMoves = sorted(hintMoves, key = lambda p: p["reward"], reverse = True)
         availableMoves.extend(hintMoves[0:3])
     
     probsMoves = []
@@ -41,7 +41,7 @@ def selectMoves(population, hintMoves, hint, errors, hand, states):
     for key in availableMoves:
             probsMoves.append(key["reward"]/total)
 
-    move = np.random.choice(availableMoves, len(availableMoves), probsMoves)
+    move = np.random.choice(availableMoves, 1, probsMoves)
      
     return move
 
