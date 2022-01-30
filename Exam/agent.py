@@ -141,7 +141,8 @@ class Player(object):
         self.name = name
         self.isMe = isMe
         for _ in range(cards):
-            self.hand.append(Card())
+            newCard = Card()
+            self.hand.append(newCard)
          
     def startgame(self, data):
         for key in data.players:
