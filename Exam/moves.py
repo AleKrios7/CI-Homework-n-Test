@@ -9,6 +9,7 @@ def mask(probs, deck):
 
 def selectMoves(population, hintMoves, hint, errors, hand, states):
 
+    availableMoves = []
     p = (8-hint)/8
     #proporzionalità inversa su hint disponibili
 
@@ -24,35 +25,24 @@ def selectMoves(population, hintMoves, hint, errors, hand, states):
 
 
     population = playCard(population, hand, e, p)
-    hintMoves = sendHint(hintMoves, p)
-
     sorted(population, key = lambda p: p["reward"], reverse = True)
-    sorted(hintMoves, key = lambda p: p["reward"], reverse = True)
-
-    availableMoves = population[0:3]
-    availableHints = hintMoves[0:3]
-    totalMoves = 0
-    totalHints = 0
+    availableMoves.extend(population[0:3])
+    if p != 0:
+        hintMoves = sendHint(hintMoves, p)
+        sorted(hintMoves, key = lambda p: p["reward"], reverse = True)
+        availableMoves.extend(hintMoves[0:3])
+    
     probsMoves = []
-    probsHints = []
-    
-    for key in availableMoves:
-        totalMoves += key["reward"]
-
-    for key in availableHints:
-        totalHints += key["reward"]
+    total = 0
 
     for key in availableMoves:
-        probsMoves.append(key["reward"]/totalMoves)
+        total += key["reward"]
+        
+    for key in availableMoves:
+            probsMoves.append(key["reward"]/total)
 
-    for key in availableHints:
-        probsHints.append(key["reward"]/totalHints)
-
-
-    move = np.random.choice(availableMoves, 3, probsMoves)
-    move = np.random.choice(availableHints, 3, probsHints)
-    
-    
+    move = np.random.choice(availableMoves, len(availableMoves), probsMoves)
+     
     return move
 
 def playCard(population, hand, e, p):
@@ -63,12 +53,13 @@ def playCard(population, hand, e, p):
         [-1,-1,-1,-1,-1],
         [-1,-1,-1,-1,-1]
     ], dtype="float")
-    move = {
-                "card":0,
-                "type":"",
-                "critical":0,
-                "chance":0,
-            }
+    
+    # move = {
+    #             "card":0,
+    #             "type":"",
+    #             "critical":0,
+    #             "chance":0,
+    #         }
     #bonuses and penalties
     points = 0
     errors = 0
@@ -100,17 +91,17 @@ def playCard(population, hand, e, p):
     
 def sendHint(hintMoves, p):
     
-    move = {
-            "type":"",
-            "hintType":"",
-            "player":"",
-            "value":0,
-            "cards":[],    
-            "critical":[],
-            "playable":[],
-            "cardValue":[],
-            "cardColor": []
-            }
+    # move = {
+    #         "type":"",
+    #         "hintType":"",
+    #         "player":"",
+    #         "value":0,
+    #         "cards":[],    
+    #         "critical":[],
+    #         "playable":[],
+    #         "cardValue":[],
+    #         "cardColor": []
+    #         }
     criticalSignal = 0
     bonusPoints = 0
 
@@ -118,7 +109,7 @@ def sendHint(hintMoves, p):
         tot = 0
         pointsaved = 0
         aff = 1
-        for i in range(len(m["cards"])):
+        for i in range(m["cards"]):
             if m["critical"][i] == 1 and m["playable"][i] == 1:
                 pointsaved += 6 - m["cardValue"] + 1 +2*p*(m["cardValue"] == 5)
                 
@@ -130,10 +121,6 @@ def sendHint(hintMoves, p):
         m["reward"] = tot
     return hintMoves        
         
-
-         
-    
-    return
                                                                                        #according to my information
         #discard commands
         #type(data) is GameData.ServerActionValid #discard

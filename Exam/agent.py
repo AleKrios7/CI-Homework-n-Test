@@ -1,11 +1,8 @@
-from distutils.log import error
-from functools import cache
-from turtle import color
 from numpy.random import choice
-from Exam.moves import selectMoves
+from moves import selectMoves
 import GameData
 import numpy as np
-import moves
+
 
 players=0
 colors = ["red","white","blue","yellow","green"]
@@ -33,10 +30,17 @@ class Card(object):
             [-1,-1,-1,-1,-1]
         ], dtype="float")
 
+        def copy(self):
+            c = Card()
+            c.value = self.value
+            c.color = self.color
+            c.probs = np.copy(self.probs)
+            return c
+
         def mask(self, probs, deck):
                 res2 = np.ma.make_mask(probs)
                 res3 = np.ma.masked_array(deck, np.invert(res2), fill_value=0)
-                return res3.filled()
+                return res3.filled(fill_value = 0)
         
         def calcProb(self, deck):
             #calcolo probabilità cambiamento del deck (play/discard)
@@ -66,19 +70,19 @@ class Card(object):
                     for i in range(5):
                         if(i != hint.value-1):
                             self.probs[i].fill(0)
-                    m = self.mask(self.probs, deck)
-                    tot = np.sum(m[hint.value-1])
-                    self.probs[hint.value-1,:] = m[hint.value-1,:]/tot
+                    #m = self.mask(self.probs, deck)
+                    #tot = np.sum(m[hint.value-1])
+                    #self.probs[hint.value-1,:] = m[hint.value-1,:]/tot
                 else:
                     self.probs[hint.value-1].fill(0)
-                    tot = 0
-                    m = self.mask(self.probs, deck)
-                    tot = np.sum(m)
-                    self.probs = m/tot
-                    isValue = np.sum(self.probs, axis=1)[0]            #checks if a value is found with exclusion
-                    x = np.where(isValue == 1)
-                    if x.size != 0:
-                        self.value=x[0]+1
+                    #tot = 0
+                    #m = self.mask(self.probs, deck)
+                    #tot = np.sum(m)
+                    #self.probs = m/tot
+                    #isValue = np.sum(self.probs, axis=1)[0]            #checks if a value is found with exclusion
+                    #x = np.where(isValue == 1)
+                    #if x[0].size != 0:
+                    #    self.value=x[0]+1
                     
                         
             elif hint.type == "color" and self.color == "":
@@ -87,22 +91,24 @@ class Card(object):
                     for i in range(5):
                         if colors[i]!=hint.value:                       #other colors are not possible
                             self.probs[:,i]=0                           #remove probabilities
-                        else:
-                            x=i
-                        m = self.mask(self.probs, deck)
-                    tot = np.sum(m[:, x])
-                    self.probs[:, x] = m[:, x]/tot            #update probabilities
+                        #else:
+                            #x=i
+                    #m = self.mask(self.probs, deck)
+                    #tot = np.sum(m[:, x])
+                    #self.probs[:, x] = m[:, x]/tot            #update probabilities
                 else:
                     i = colors.index(hint.value)
                     self.probs[:,i] = 0
-                    tot = 0
-                    m = self.mask(self.probs, deck)
-                    tot = np.sum(m)
-                    self.probs = m/tot
-                    isColor = np.sum(self.probs, axis=0)               #checks if a color is found with exclusion
-                    y = np.where(isColor == 1)[0]
-                    if y.size != 0:
-                        self.value=colors[y[0]]
+                    #tot = 0
+                    #m = self.mask(self.probs, deck)
+                    #tot = np.sum(m)
+                    #self.probs = m/tot
+                    #isColor = np.sum(self.probs, axis=0)               #checks if a color is found with exclusion
+                    #y = np.where(isColor == 1)[0]
+                    #if y[0].size != 0:
+                    #    self.value=colors[y[0]]
+                
+            self.calcProb(deck)
             
                     
 
@@ -208,8 +214,6 @@ class Player(object):
                 for t in data.tableCards.keys():
                     if len(data.tableCards[t]):
                         table[colors.index(t)] = data.tableCards[t][-1].value
-            
-            
 
         elif(type(data) is GameData.ServerActionValid 
             or type(data) is GameData.ServerPlayerThunderStrike
@@ -238,32 +242,34 @@ class Player(object):
     
     def criticalHint(self):
 
-        move = {
-                "type":"",
+        moveType = {
+                "type":"hint",
                 "hintType":"",
                 "player":"",
                 "value":0,
                 "cards":0,    
-                "critical":0,
-                "playable":0,
-                "cardValue":0,
-                "cardColor": ""
+                "critical":[],
+                "playable":[],
+                "cardValue":[],
+                "cardColor": []
             }
+
+        
 
         for key in self.teammates.keys():
             hand = self.teammates[key]
             for c in hand:
-                if self.states[c[0]-1,c[1]] > 2:
-
-                    move["moveType"] = "hint"
-                    move["player"] = key
-                    move["cards"] = 1
-                    move["critical"] = 1
-                    move["playable"] = 1 if self.states[c[0]-1,c[1]]==4 else 0
-                    move["cardValue"] = c[0]
-                    move["cardColor"] = c[1]
+                if self.states[c[0]-1,colors.index(c[1])] > 2:
+                    
 
                     if c[2].value==0:
+                        move = moveType.copy()
+                        move["player"] = key
+                        move["cards"] = 1
+                        move["critical"].append(1)
+                        move["playable"].append(1 if self.states[c[0]-1,colors.index(c[1])]==4 else 0)
+                        move["cardValue"].append(c[0])
+                        move["cardColor"].append(c[1])
                         move["hintType"] = "value" 
                         move["value"] = c[0]
                         hintMoves.append(move)
@@ -272,25 +278,32 @@ class Player(object):
                             if hint["player"] == move["player"] and hint["hintType"] == move["hintType"] and hint["value"] == move["value"]:
                                 hint["cards"]+=1
                                 hint["critical"].append(1)
-                                hint["playable"].append(1 if self.states[c[0]-1,c[1]]==4 else 0)
-                                move["cardValue"].append(c[0])
-                                move["cardColor"].append(c[1])
+                                hint["playable"].append(1 if self.states[c[0]-1,colors.index(c[1])]==4 else 0)
+                                hint["cardValue"].append(c[0])
+                                hint["cardColor"].append(c[1])
                             else:
                                 hintMoves.append(move)        
 
                     if c[2].color=="":
-                        move["hintType"] = "color"
-                        move["value"] = c[1]
+                        move2 = moveType.copy()
+                        move2["player"] = key
+                        move2["cards"] = 1
+                        move2["critical"].append(0)
+                        move2["playable"].append(1)
+                        move2["cardValue"].append(c[0])
+                        move2["cardColor"].append(c[1])
+                        move2["hintType"] = "color"
+                        move2["value"] = c[1]
                         
                         for hint in hintMoves:
-                            if hint["player"] == move["player"] and hint["hintType"] == move["hintType"] and hint["value"] == move["value"]:
+                            if hint["player"] == move2["player"] and hint["hintType"] == move2["hintType"] and hint["value"] == move2["value"]:
                                 hint["cards"]+=1
                                 hint["critical"].append(1)
-                                hint["playable"].append(1 if self.states[c[0]-1,c[1]]==4 else 0)
-                                move["cardValue"].append(c[0])
-                                move["cardColor"].append(c[1])
+                                hint["playable"].append(1 if self.states[c[0]-1,colors.index(c[1])]==4 else 0)
+                                hint["cardValue"].append(c[0])
+                                hint["cardColor"].append(c[1])
                             else:
-                                hintMoves.append(move) 
+                                hintMoves.append(move2) 
                         
                     
 
@@ -301,31 +314,34 @@ class Player(object):
 
     def playableHint(self):
     
-        move = {
-                "type":"",
+        moveType = {
+                "type":"hint",
                 "hintType":"",
                 "player":"",
                 "value":0,
                 "cards":0,    
-                "critical":0,
-                "playable":0,
-                "cardValue":0,
-                "cardColor": ""
+                "critical":[],
+                "playable":[],
+                "cardValue":[],
+                "cardColor": []
             }
+
 
         for key in self.teammates.keys():
             hand = self.teammates[key]
             for c in hand:
-                if self.states[c[0]-1,c[1]] == 2:
-                    move["type"] = "hint"
-                    move["player"] = key
-                    move["cards"] = 1
-                    move["critical"] = 0
-                    move["playable"] = 1
-                    move["cardValue"] = c[0]
-                    move["cardColor"] = c[1]
+                
+                if self.states[c[0]-1,colors.index(c[1])] == 2:
+                    
 
                     if c[2].value==0:
+                        move = moveType.copy()
+                        move["player"] = key
+                        move["cards"] = 1
+                        move["critical"].append(0)
+                        move["playable"].append(1)
+                        move["cardValue"].append(c[0])
+                        move["cardColor"].append(c[1])
                         move["hintType"] = "value" 
                         move["value"] = c[0]
 
@@ -334,31 +350,39 @@ class Player(object):
                                 hint["cards"]+=1
                                 hint["critical"].append(0)
                                 hint["playable"].append(1)
-                                move["cardValue"].append(c[0])
-                                move["cardColor"].append(c[1])
+                                hint["cardValue"].append(c[0])
+                                hint["cardColor"].append(c[1])
                         else:
                             hintMoves.append(move)
 
+                    
                     if c[2].color=="":
-                        move["hintType"] = "color"
-                        move["value"] = c[1]
+                        move2 = moveType.copy()
+                        move2["player"] = key
+                        move2["cards"] = 1
+                        move2["critical"].append(0)
+                        move2["playable"].append(1)
+                        move2["cardValue"].append(c[0])
+                        move2["cardColor"].append(c[1])
+                        move2["hintType"] = "color"
+                        move2["value"] = c[1]
 
                         for hint in hintMoves:
-                            if hint["player"] == move["player"] and hint["hintType"] == move["hintType"] and hint["value"] == move["value"]:
+                            if hint["player"] == move2["player"] and hint["hintType"] == move2["hintType"] and hint["value"] == move2["value"]: 
                                 hint["cards"]+=1
                                 hint["critical"].append(0)
                                 hint["playable"].append(1)
-                                move["cardValue"].append(c[0])
-                                move["cardColor"].append(c[1])
+                                hint["cardValue"].append(c[0])
+                                hint["cardColor"].append(c[1])
                             else:
-                                hintMoves.append(move)          
+                                hintMoves.append(move2)          
 
         return
 
     def findMoves(self):
         global population
         population=[]
-        move = {
+        moveType = {
                 "card":0,
                 "type":"",
                 "critical":0,
@@ -367,9 +391,11 @@ class Player(object):
                 "color":""
             }
 
+        move = moveType.copy()
+
         for card in self.hand:
             if card.value!=0 and card.color!="":
-
+                move = moveType.copy()
                 if self.states[card.value-1, colors.index(card.color)]==2 or self.states[card.value-1, colors.index(card.color)]==4:
                     move["card"]=self.hand.index(card)
                     move["type"]="play"
@@ -386,63 +412,68 @@ class Player(object):
                     move["color"]=card.color
                     population.append(move)
             elif card.value!=0 and card.color=="":
-                cardTmp = card
+                cardTmp = card.copy()
                 for color in colors:
+                    move = moveType.copy()
                     cardTmp.color=color
-                    if self.states[cardTmp.value-1, colors.index(cardTmp.color)]==2 or self.states[cardTmp.value-1, colors.index(cardTmp.color)]==4:
+                    if (self.states[cardTmp.value-1, colors.index(cardTmp.color)]==2 or self.states[cardTmp.value-1, colors.index(cardTmp.color)]==4) and cardTmp.probs[cardTmp.value-1,colors.index(color)]!=0:
                         move["card"] = self.hand.index(card)
                         move["type"] = "play"
-                        move["chance"] = card.probs[cardTmp.value-1, colors.index(cardTmp.color)]
+                        move["chance"] = cardTmp.probs[cardTmp.value-1, colors.index(cardTmp.color)]
                         move["critical"] = self.states[cardTmp.value-1, colors.index(cardTmp.color)]==4
-                        move["value"]=card.value
-                        move["color"]=card.color
+                        move["value"]=cardTmp.value
+                        move["color"]=cardTmp.color
                         population.append(move)
                     elif self.states[cardTmp.value-1, colors.index(cardTmp.color)]==1:
                         move["card"]=self.hand.index(card)
                         move["type"]="discard"
-                        move["chance"]=card.probs[cardTmp.value-1, colors.index(cardTmp.color)]
-                        move["value"]=card.value
-                        move["color"]=card.color
+                        move["chance"]=cardTmp.probs[cardTmp.value-1, colors.index(cardTmp.color)]
+                        move["value"]=cardTmp.value
+                        move["color"]=cardTmp.color
                         population.append(move)
             elif card.value==0 and card.color!="":
-                cardTmp = card
+                cardTmp = card.copy()
                 for i in range(5):
-                    cardTmp.value=i
-                    if self.states[cardTmp.value-1, colors.index(cardTmp.color)]==2 or self.states[cardTmp.value-1, colors.index(cardTmp.color)]==4:
+                    move = moveType.copy()
+                    cardTmp.value=i+1
+                    if (self.states[cardTmp.value-1, colors.index(cardTmp.color)]==2 or self.states[cardTmp.value-1, colors.index(cardTmp.color)]==4) and cardTmp.probs[i,colors.index(cardTmp.color)]!=0:
                         move["card"] = self.hand.index(card)
                         move["type"] = "play"
                         move["chance"] = card.probs[cardTmp.value-1, colors.index(cardTmp.color)]
                         move["critical"] = self.states[cardTmp.value-1, colors.index(cardTmp.color)]==4
-                        move["value"]=card.value
-                        move["color"]=card.color
+                        move["value"]=cardTmp.value
+                        move["color"]=cardTmp.color
                         population.append(move)
                     elif self.states[card.value-1, colors.index(cardTmp.color)]==1:
                         move["card"]=self.hand.index(card)
                         move["type"]="discard"
-                        move["chance"]=card.probs[cardTmp.value-1, colors.index(cardTmp.color)]
-                        move["value"]=card.value
-                        move["color"]=card.color
+                        move["chance"]=cardTmp.probs[cardTmp.value-1, colors.index(cardTmp.color)]
+                        move["value"]=cardTmp.value
+                        move["color"]=cardTmp.color
                         population.append(move)
             elif card.value==0 and card.color=="" and card.probs.min() == 0:
                 m = card.mask(card.probs, self.states)
-                cardTmp = card
+                cardTmp = card.copy()
                 for i in range(5):
-                    cardTmp.value=i
-                    if m[cardTmp.value-1, colors.index(cardTmp.color)]==2 or m[cardTmp.value-1, colors.index(cardTmp.color)]==4:
-                        move["card"] = self.hand.index(card)
-                        move["type"] = "play"
-                        move["chance"] = card.probs[cardTmp.value-1, colors.index(cardTmp.color)]
-                        move["critical"] = m[cardTmp.value-1, colors.index(cardTmp.color)]==4
-                        move["value"]=card.value
-                        move["color"]=card.color
-                        population.append(move)
-                    elif m[card.value-1, colors.index(cardTmp.color)]==1:
-                        move["card"]=self.hand.index(card)
-                        move["type"]="discard"
-                        move["chance"]=card.probs[cardTmp.value-1, colors.index(cardTmp.color)]
-                        move["value"]=card.value
-                        move["color"]=card.color
-                        population.append(move)
+                    for j in range(5):
+                        move = moveType.copy()
+                        cardTmp.value=i+1
+                        cardTmp.color=colors[j]
+                        if (m[cardTmp.value-1, colors.index(cardTmp.color)]==2 or m[cardTmp.value-1, colors.index(cardTmp.color)]==4) and cardTmp.probs[i,j]!=0:
+                            move["card"] = self.hand.index(card)
+                            move["type"] = "play"
+                            move["chance"] = cardTmp.probs[cardTmp.value-1, colors.index(cardTmp.color)]
+                            move["critical"] = m[cardTmp.value-1, colors.index(cardTmp.color)]==4
+                            move["value"]=cardTmp.value
+                            move["color"]=cardTmp.color
+                            population.append(move)
+                        elif m[cardTmp.value-1, colors.index(cardTmp.color)]==1 and cardTmp.probs[i,j]!=0:
+                            move["card"]=self.hand.index(card)
+                            move["type"]="discard"
+                            move["chance"]=cardTmp.probs[cardTmp.value-1, colors.index(cardTmp.color)]
+                            move["value"]=cardTmp.value
+                            move["color"]=cardTmp.color
+                            population.append(move)
 
     def play(self):
 
@@ -453,9 +484,6 @@ class Player(object):
         move = selectMoves(population, hintMoves, hint, errors, self.hand, self.states)
         
         return move
-
-
-    
 
 def isCritical(card, deck):
     global colors

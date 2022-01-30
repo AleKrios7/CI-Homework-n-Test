@@ -6,15 +6,18 @@ import GameData
 import socket
 from constants import *
 import os
-import agent
+
 
 if len(argv) < 4:
-    print("Oh no")
-    exit(-1)
+    print("You need the player name to start the game.")
+    #exit(-1)
+    playerName = "Test" # For debug
+    ip = HOST
+    port = PORT
 else:
+    playerName = argv[3]
     ip = argv[1]
     port = int(argv[2])
-    playerName = argv[3] #self
 
 run = True
 
@@ -27,10 +30,7 @@ hintState = ("", "")
 def manageInput():
     global run
     global status
-    global playerName
-
     while run:
-        #if turn move
         command = input()
         # Choose data to send
         if command == "exit":
@@ -84,18 +84,6 @@ def manageInput():
             continue
         stdout.flush()
 
-
-def sendHint(destination, type, value):
-    s.send(GameData.ClientHintData(playerName, destination, type, value).serialize())
-
-def play(card):
-    s.send(GameData.ClientPlayerPlayCardRequest(playerName, card).serialize())
-
-def discard(card):
-    s.send(GameData.ClientPlayerDiscardCardRequest(playerName, card).serialize())
-
-
-
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
     request = GameData.ClientPlayerAddData(playerName)
     s.connect((HOST, PORT))
@@ -106,64 +94,29 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         print("Connection accepted by the server. Welcome " + playerName)
     print("[" + playerName + " - " + status + "]: ", end="")
     Thread(target=manageInput).start()
-    
-
-    s.send(GameData.ClientPlayerStartRequest(playerName).serialize()) #auto-ready
-
     while run:
         dataOk = False
-
         data = s.recv(DATASIZE)
-        data = GameData.GameData.deserialize(data)
-        
         if not data:
             continue
-
+        data = GameData.GameData.deserialize(data)
         if type(data) is GameData.ServerPlayerStartRequestAccepted:
             dataOk = True
             print("Ready: " + str(data.acceptedStartRequests) + "/"  + str(data.connectedPlayers) + " players")
-
             data = s.recv(DATASIZE)
             data = GameData.GameData.deserialize(data)
-
         if type(data) is GameData.ServerStartGameData:
             dataOk = True
             print("Game start!")
-
-            cards = 4 if len(data.players) > 3 else 5
-                       
-            me = agent.Player(cards, argv[3], 1)
-
             s.send(GameData.ClientPlayerReadyData(playerName).serialize())
             status = statuses[1]
-            
-
-            s.send(GameData.ClientGetGameStateRequest(playerName).serialize()) #show for start game
-            data = s.recv(DATASIZE)
-            data = GameData.GameData.deserialize(data)
-            me.startgame(data)
-
         if type(data) is GameData.ServerGameStateData:
-            
             dataOk = True
-
-            me.update(data)
-
-            if data.currentPlayer == playerName:
-                move = me.play()
-
-                if move["type"]=="hint":
-                    sendHint(move["player"], move["hintType"], move["value"])
-                elif move["type"] == "play":
-                    play(move["card"])
-                else:
-                    discard(move["card"])
-
-
             print("Current player: " + data.currentPlayer)
             print("Player hands: ")
             for p in data.players:
                 print(p.toClientString())
+            print("Cards in your hand: " + str(data.handSize))
             print("Table cards: ")
             for pos in data.tableCards:
                 print(pos + ": [ ")
@@ -175,42 +128,27 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 print("\t" + c.toClientString())            
             print("Note tokens used: " + str(data.usedNoteTokens) + "/8")
             print("Storm tokens used: " + str(data.usedStormTokens) + "/3")
-
         if type(data) is GameData.ServerActionInvalid:
             dataOk = True
             print("Invalid action performed. Reason:")
             print(data.message)
         if type(data) is GameData.ServerActionValid:
             dataOk = True
-            me.update(data)
             print("Action valid!")
             print("Current player: " + data.player)
         if type(data) is GameData.ServerPlayerMoveOk:
             dataOk = True
-            me.update(data)
             print("Nice move!")
             print("Current player: " + data.player)
-            if data.player == playerName:
-                s.send(GameData.ClientGetGameStateRequest(playerName).serialize())
-
-
         if type(data) is GameData.ServerPlayerThunderStrike:
             dataOk = True
-            me.update(data)
             print("OH NO! The Gods are unhappy with you!")
-            if data.player == playerName:
-                s.send(GameData.ClientGetGameStateRequest(playerName).serialize())
-
         if type(data) is GameData.ServerHintData:
             dataOk = True
-            me.update(data)
             print("Hint type: " + data.type)
             print("Player " + data.destination + " cards with value " + str(data.value) + " are:")
             for i in data.positions:
                 print("\t" + str(i))
-            if data.player == playerName:
-                s.send(GameData.ClientGetGameStateRequest(playerName).serialize())
-            
         if type(data) is GameData.ServerInvalidDataReceived:
             dataOk = True
             print(data.data)
@@ -220,8 +158,8 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             print(data.score)
             print(data.scoreMessage)
             stdout.flush()
-            run = False
-            print("GG\n")
+            #run = False
+            print("Ready for a new game!")
         if not dataOk:
             print("Unknown or unimplemented data type: " +  str(type(data)))
         print("[" + playerName + " - " + status + "]: ", end="")
