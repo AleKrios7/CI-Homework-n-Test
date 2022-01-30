@@ -26,11 +26,11 @@ def selectMoves(population, hintMoves, hint, errors, hand, states):
 
     population = playCard(population, hand, e, p)
     population = sorted(population, key = lambda p: p["reward"], reverse = True)
-    availableMoves.extend(population[0:3])
+    availableMoves.extend(population[0:2])
     if p != 0:
         hintMoves = sendHint(hintMoves, p)
         hintMoves = sorted(hintMoves, key = lambda p: p["reward"], reverse = True)
-        availableMoves.extend(hintMoves[0:3])
+        availableMoves.extend(hintMoves[0:2])
     
     probsMoves = []
     total = 0
@@ -114,31 +114,11 @@ def sendHint(hintMoves, p):
                 pointsaved += 6 - m["cardValue"] + 1 +2*p*(m["cardValue"] == 5)
                 
             elif m["critical"][i] == 1:
-                pointsaved += 6 - m["cardValue"]
+                pointsaved += 6 - m["cardValue"][i]
+                    
+
             else:
                 pointsaved += 1 +2*p*(m["cardValue"] == 5)
         tot += aff * pointsaved - 2*p
         m["reward"] = tot
-    return hintMoves        
-        
-                                                                                       #according to my information
-        #discard commands
-        #type(data) is GameData.ServerActionValid #discard
-        #type(data) is GameData.ServerActionInvalid #wrong command
-
-        ##play commands
-        #type(data) is GameData.ServerPlayerMoveOk #correct play
-        #type(data) is GameData.ServerPlayerThunderStrike #wrong move
-
-        ##error msg
-        #type(data) is GameData.ServerInvalidDataReceived #invalid data
-
-        ##game setup commands
-        #type(data) is GameData.ServerGameOver #game over
-        #type(data) is GameData.ServerPlayerStartRequestAccepted #start request (queue)
-        #type(data) is GameData.ServerStartGameData #ready
-
-        #for i in range(len(self.hand)):
-        #   self.hand[i].calcProb(data, self.deckAvailableSelf)
-        #devo decidere che update fare
-
+    return hintMoves

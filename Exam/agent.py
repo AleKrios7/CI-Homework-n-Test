@@ -67,9 +67,9 @@ class Card(object):
             if hint.type == "value" and self.value==0:                            
                 if mypos in hint.positions:
                     self.value = hint.value
-                    for i in range(5):
-                        if(i != hint.value-1):
-                            self.probs[i].fill(0)
+                    for x in range(5):
+                        if(x != hint.value-1):
+                            self.probs[x].fill(0)
                     #m = self.mask(self.probs, deck)
                     #tot = np.sum(m[hint.value-1])
                     #self.probs[hint.value-1,:] = m[hint.value-1,:]/tot
@@ -150,16 +150,11 @@ class Player(object):
             if name!=self.name:
                 hand = []
                 for c in key.hand:
-                    hand.append((c.value, c.color, Card()))
+                    newCard = Card()
+                    hand.append((c.value, c.color, newCard))
                     self.deckAvailableSelf[c.value-1, colors.index(c.color)] -= 1
                 self.teammates[name] = hand
-                
-    def play(index):
-        print("To implement")
 
-    def discard(index):
-        print("To implement")
-  
     def newStates(self, i, j):
         if(self.deckAvailableSelf[i,j] != 0):
             if i+1<=table[j]:
@@ -182,6 +177,7 @@ class Player(object):
                              #aggiorna saved decks
         global hint
         global errors
+        global deckAvailableOthers
         if(type(data) is GameData.ServerGameStateData):                         
             ##show has been called, update is needed
             #TODO: modifica deck values using data
@@ -194,7 +190,7 @@ class Player(object):
             #usedNoteToken = numero di hint dati 0-8
             #usedStormTokens = numero di errori 0-2 (a 3 la partita finisce)
             
-
+            first = 0
             hint = data.usedNoteTokens
             errors = data.usedStormTokens
             count = len(self.toServe)
@@ -206,10 +202,10 @@ class Player(object):
                 self.newStates(card.value - 1, colors.index(card.color))
                 self.toServe.pop(self.toServe.index(player))
             
-            if(count > 0):
-                
-                for player in data.players:
-                    self.teammates.append(player.hand)
+            if count > 0 or first==0:
+                #bug qui
+                #for player in data.players:
+                    #self.teammates[player].append(player.hand)
                 for i in range(len(self.hand)):
                     self.hand[i].calcProb(self.deckAvailableSelf)
                 for t in data.tableCards.keys():
@@ -225,11 +221,11 @@ class Player(object):
             #player -> giocatore che deve giocare
             if(data.lastPlayer == self.name):
                 self.deckAvailableSelf[data.card.value - 1, colors.index(data.card.color)] -= 1
-                self.deckAvailableOthers[data.card.value - 1, colors.index(data.card.color)] -=1
+                deckAvailableOthers[data.card.value - 1, colors.index(data.card.color)] -=1
                 self.newStates(data.card.value - 1, colors.index(data.card.color))
             else:
                 self.toServe.append(data.lastPlayer)
-                for i in range(self.hand):
+                for i in range(len(self.teammates[data.lastPlayer])):
                     if(self.teammates[data.lastPlayer][i][0,1] == (data.card.value, data.card.color)):
                         self.teammates[data.lastPlayer][i].pop()
                         self.teammates[data.lastPlayer][i].append((0,"", Card()))
@@ -239,7 +235,7 @@ class Player(object):
                     self.hand[i].calcHint(data, i, self.deckAvailableSelf)                  #need to update all cards and available cards
             else:
                 for i in range(len(self.hand)):
-                    self.teammates[data.destination][i][2].calcHint(data, i, )
+                    self.teammates[data.destination][i][2].calcHint(data, i, deckAvailableOthers)
     
     def criticalHint(self):
 
@@ -262,7 +258,7 @@ class Player(object):
             for c in hand:
                 if self.states[c[0]-1,colors.index(c[1])] > 2:
                     
-
+                    append=0
                     if c[2].value==0:
                         move = moveType.copy()
                         move["player"] = key
@@ -282,9 +278,12 @@ class Player(object):
                                 hint["playable"].append(1 if self.states[c[0]-1,colors.index(c[1])]==4 else 0)
                                 hint["cardValue"].append(c[0])
                                 hint["cardColor"].append(c[1])
-                            else:
-                                hintMoves.append(move)        
+                                append=1
+                                break
+                        if append==0:
+                            hintMoves.append(move)        
 
+                    append=0
                     if c[2].color=="":
                         move2 = moveType.copy()
                         move2["player"] = key
@@ -303,14 +302,11 @@ class Player(object):
                                 hint["playable"].append(1 if self.states[c[0]-1,colors.index(c[1])]==4 else 0)
                                 hint["cardValue"].append(c[0])
                                 hint["cardColor"].append(c[1])
-                            else:
-                                hintMoves.append(move2) 
-                        
-                    
+                                append=1
+                                break
+                        if append ==0:
+                            hintMoves.append(move2) 
 
-                             
-                    
-        
         return
 
     def playableHint(self):
@@ -331,10 +327,12 @@ class Player(object):
         for key in self.teammates.keys():
             hand = self.teammates[key]
             for c in hand:
+
+                
                 
                 if self.states[c[0]-1,colors.index(c[1])] == 2:
                     
-
+                    append=0
                     if c[2].value==0:
                         move = moveType.copy()
                         move["player"] = key
@@ -353,10 +351,12 @@ class Player(object):
                                 hint["playable"].append(1)
                                 hint["cardValue"].append(c[0])
                                 hint["cardColor"].append(c[1])
-                        else:
+                                append=1
+                                break
+                        if append == 0:
                             hintMoves.append(move)
 
-                    
+                    append = 0
                     if c[2].color=="":
                         move2 = moveType.copy()
                         move2["player"] = key
@@ -369,14 +369,16 @@ class Player(object):
                         move2["value"] = c[1]
 
                         for hint in hintMoves:
-                            if hint["player"] == move2["player"] and hint["hintType"] == move2["hintType"] and hint["value"] == move2["value"]: 
+                            if (hint["player"] == move2["player"]) and (hint["hintType"] == move2["hintType"]) and (hint["value"] == move2["value"]): 
                                 hint["cards"]+=1
                                 hint["critical"].append(0)
                                 hint["playable"].append(1)
                                 hint["cardValue"].append(c[0])
                                 hint["cardColor"].append(c[1])
-                            else:
-                                hintMoves.append(move2)          
+                                append=1
+                                break
+                        if append == 0:
+                            hintMoves.append(move2)          
 
         return
 
@@ -477,6 +479,9 @@ class Player(object):
                             population.append(move)
 
     def play(self):
+
+        population=[]
+        hintMoves=[]
 
         self.findMoves()
         self.playableHint()
