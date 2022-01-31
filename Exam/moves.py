@@ -26,20 +26,22 @@ def selectMoves(population, hintMoves, hint, errors, hand, states):
 
     population = playCard(population, hand, e, p)
     population = sorted(population, key = lambda p: p["reward"], reverse = True)
-    availableMoves.extend(population[0:2])
+    availableMoves.extend(population[0:3])
     if p != 0:
         hintMoves = sendHint(hintMoves, p)
         hintMoves = sorted(hintMoves, key = lambda p: p["reward"], reverse = True)
-        availableMoves.extend(hintMoves[0:2])
+        availableMoves.extend(hintMoves[0:3])
     
     probsMoves = []
     total = 0
-
+    availableMoves = sorted(availableMoves, key = lambda p: p["reward"], reverse = True)
+    offset = availableMoves[-1]["reward"]
     for key in availableMoves:
-        total += key["reward"]
+        total += key["reward"]+offset*-1*(offset < 0)
+    
         
     for key in availableMoves:
-            probsMoves.append(key["reward"]/total)
+        probsMoves.append((key["reward"]+offset*-1*(offset < 0))/total)
 
     move = np.random.choice(availableMoves, 1, probsMoves)
      
@@ -115,7 +117,6 @@ def sendHint(hintMoves, p):
                 
             elif m["critical"][i] == 1:
                 pointsaved += 6 - m["cardValue"][i]
-                    
 
             else:
                 pointsaved += 1 +2*p*(m["cardValue"] == 5)

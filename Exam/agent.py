@@ -2,6 +2,7 @@ from numpy.random import choice
 from moves import selectMoves
 import GameData
 import numpy as np
+import copy 
 
 
 players=0
@@ -70,19 +71,13 @@ class Card(object):
                     for x in range(5):
                         if(x != hint.value-1):
                             self.probs[x].fill(0)
-                    #m = self.mask(self.probs, deck)
-                    #tot = np.sum(m[hint.value-1])
-                    #self.probs[hint.value-1,:] = m[hint.value-1,:]/tot
                 else:
                     self.probs[hint.value-1].fill(0)
-                    #tot = 0
-                    #m = self.mask(self.probs, deck)
-                    #tot = np.sum(m)
-                    #self.probs = m/tot
-                    #isValue = np.sum(self.probs, axis=1)[0]            #checks if a value is found with exclusion
-                    #x = np.where(isValue == 1)
-                    #if x[0].size != 0:
-                    #    self.value=x[0]+1
+                    self.calcProb(deck)
+                    isValue = np.sum(self.probs, axis=1)[0]            #checks if a value is found with exclusion
+                    x = np.where(isValue == 1)
+                    if x[0].size != 0:
+                        self.value=x[0]+1
                     
                         
             elif hint.type == "color" and self.color == "":
@@ -91,22 +86,14 @@ class Card(object):
                     for i in range(5):
                         if colors[i]!=hint.value:                       #other colors are not possible
                             self.probs[:,i]=0                           #remove probabilities
-                        #else:
-                            #x=i
-                    #m = self.mask(self.probs, deck)
-                    #tot = np.sum(m[:, x])
-                    #self.probs[:, x] = m[:, x]/tot            #update probabilities
+            #update probabilities
                 else:
                     i = colors.index(hint.value)
-                    self.probs[:,i] = 0
-                    #tot = 0
-                    #m = self.mask(self.probs, deck)
-                    #tot = np.sum(m)
-                    #self.probs = m/tot
-                    #isColor = np.sum(self.probs, axis=0)               #checks if a color is found with exclusion
-                    #y = np.where(isColor == 1)[0]
-                    #if y[0].size != 0:
-                    #    self.value=colors[y[0]]
+                    self.calcProb(deck)
+                    isColor = np.sum(self.probs, axis=0)               #checks if a color is found with exclusion
+                    y = np.where(isColor == 1)[0]
+                    if y[0].size != 0:
+                        self.value=colors[y[0]]
                 
             self.calcProb(deck)
             
@@ -153,7 +140,7 @@ class Player(object):
                     newCard = Card()
                     hand.append((c.value, c.color, newCard))
                     self.deckAvailableSelf[c.value-1, colors.index(c.color)] -= 1
-                self.teammates[name] = hand
+                self.teammates[name] = hand.copy()
 
     def newStates(self, i, j):
         if(self.deckAvailableSelf[i,j] != 0):
@@ -203,9 +190,6 @@ class Player(object):
                 self.toServe.pop(self.toServe.index(player))
             
             if count > 0 or first==0:
-                #bug qui
-                #for player in data.players:
-                    #self.teammates[player].append(player.hand)
                 for i in range(len(self.hand)):
                     self.hand[i].calcProb(self.deckAvailableSelf)
                 for t in data.tableCards.keys():
@@ -260,7 +244,7 @@ class Player(object):
                     
                     append=0
                     if c[2].value==0:
-                        move = moveType.copy()
+                        move = copy.deepcopy(moveType)
                         move["player"] = key
                         move["cards"] = 1
                         move["critical"].append(1)
@@ -269,7 +253,6 @@ class Player(object):
                         move["cardColor"].append(c[1])
                         move["hintType"] = "value" 
                         move["value"] = c[0]
-                        hintMoves.append(move)
 
                         for hint in hintMoves:
                             if hint["player"] == move["player"] and hint["hintType"] == move["hintType"] and hint["value"] == move["value"]:
@@ -285,7 +268,7 @@ class Player(object):
 
                     append=0
                     if c[2].color=="":
-                        move2 = moveType.copy()
+                        move2 = copy.deepcopy(moveType)
                         move2["player"] = key
                         move2["cards"] = 1
                         move2["critical"].append(0)
@@ -327,14 +310,10 @@ class Player(object):
         for key in self.teammates.keys():
             hand = self.teammates[key]
             for c in hand:
-
-                
-                
                 if self.states[c[0]-1,colors.index(c[1])] == 2:
-                    
                     append=0
                     if c[2].value==0:
-                        move = moveType.copy()
+                        move = copy.deepcopy(moveType)
                         move["player"] = key
                         move["cards"] = 1
                         move["critical"].append(0)
@@ -358,7 +337,7 @@ class Player(object):
 
                     append = 0
                     if c[2].color=="":
-                        move2 = moveType.copy()
+                        move2 = copy.deepcopy(moveType)
                         move2["player"] = key
                         move2["cards"] = 1
                         move2["critical"].append(0)
@@ -476,12 +455,9 @@ class Player(object):
                             move["chance"]=cardTmp.probs[cardTmp.value-1, colors.index(cardTmp.color)]
                             move["value"]=cardTmp.value
                             move["color"]=cardTmp.color
-                            population.append(move)
+                            population.append(move)   
 
     def play(self):
-
-        population=[]
-        hintMoves=[]
 
         self.findMoves()
         self.playableHint()
