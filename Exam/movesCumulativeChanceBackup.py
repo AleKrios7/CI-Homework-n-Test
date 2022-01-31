@@ -24,11 +24,11 @@ def selectMoves(population, hintMoves, hint, errors, hand, states):
     #    c = choice([1,0], 1, p)
 
 
-    plavMoves = playCard(population, hand, e, 1-p)
-    plavMoves = sorted(plavMoves, key = lambda p: p["reward"], reverse = True)
-    availableMoves.extend(plavMoves[0:3])
+    population = playCard(population, hand, e, p)
+    population = sorted(population, key = lambda p: p["reward"], reverse = True)
+    availableMoves.extend(population[0:3])
     if p != 0:
-        hintMoves = sendHint(hintMoves, 1-p)
+        hintMoves = sendHint(hintMoves, p)
         hintMoves = sorted(hintMoves, key = lambda p: p["reward"], reverse = True)
         availableMoves.extend(hintMoves[0:3])
     
@@ -107,7 +107,7 @@ def playCard(population, hand, e, p):
                 losePoints = 6 - hand[key["card"]].value
                 playmoves[b]["reward"] = playmoves[b]["chance"]*2*(1+2*p)-(1-playmoves[b]["chance"])*(losePoints+1)
             else:
-                playmoves[b]["reward"] = playmoves[b]["chance"]*(2+p)-(1-key["chance"])
+                playmoves[b]["reward"] = playmoves[b]["chance"]*(1+2*p)
 
     return playmoves
     

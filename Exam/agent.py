@@ -92,7 +92,7 @@ class Card(object):
                     self.calcProb(deck)
                     isColor = np.sum(self.probs, axis=0)               #checks if a color is found with exclusion
                     y = np.where(isColor == 1)[0]
-                    if y[0].size != 0:
+                    if y.size != 0:
                         self.value=colors[y[0]]
                 
             self.calcProb(deck)
@@ -185,7 +185,9 @@ class Player(object):
                 card = [p for p in data.players if p.name == player][0].hand[-1]
                 #card = data.players['name'][player]['hand'][-1]
                 self.deckAvailableSelf[card.value - 1, colors.index(card.color)] -= 1
-                self.teammates[player][-1][0,1] = (card.value, card.color)
+                tuple = (card.value, card.color, self.teammates[player][-1][2])
+                self.teammates[player].pop(-1)
+                self.teammates[player].append(tuple)
                 self.newStates(card.value - 1, colors.index(card.color))
                 self.toServe.pop(self.toServe.index(player))
             
@@ -210,9 +212,10 @@ class Player(object):
             else:
                 self.toServe.append(data.lastPlayer)
                 for i in range(len(self.teammates[data.lastPlayer])):
-                    if(self.teammates[data.lastPlayer][i][0,1] == (data.card.value, data.card.color)):
-                        self.teammates[data.lastPlayer][i].pop()
-                        self.teammates[data.lastPlayer][i].append((0,"", Card()))
+                    
+                    if(self.teammates[data.lastPlayer][i][0] == (data.card.value) and self.teammates[data.lastPlayer][i][1] == data.card.color):
+                        self.teammates[data.lastPlayer].pop(i)
+                        self.teammates[data.lastPlayer].append((0,"", Card()))
         elif(type(data) is GameData.ServerHintData ):  ##hint has been given, update local cards
             if data.destination == self.name:
                 for i in range(len(self.hand)):
@@ -240,10 +243,10 @@ class Player(object):
         for key in self.teammates.keys():
             hand = self.teammates[key]
             for c in hand:
-                if self.states[c[0]-1,colors.index(c[1])] > 2:
+                if self.states[c[0]-1,colors.index(c[1])] > 2 and c[2].probs[c[0]-1,colors.index(c[1])]!=0:
                     
                     append=0
-                    if c[2].value==0:
+                    if c[2].value==0 and np.sum(c[2].probs[c[0]-1])!=0:
                         move = copy.deepcopy(moveType)
                         move["player"] = key
                         move["cards"] = 1
@@ -267,7 +270,7 @@ class Player(object):
                             hintMoves.append(move)        
 
                     append=0
-                    if c[2].color=="":
+                    if c[2].color=="" and np.sum(c[2].probs[:, colors.index(c[1])])!=0:
                         move2 = copy.deepcopy(moveType)
                         move2["player"] = key
                         move2["cards"] = 1
@@ -310,9 +313,9 @@ class Player(object):
         for key in self.teammates.keys():
             hand = self.teammates[key]
             for c in hand:
-                if self.states[c[0]-1,colors.index(c[1])] == 2:
+                if self.states[c[0]-1,colors.index(c[1])] == 2 and c[2].probs[c[0],colors.index(c[1])]!=0:
                     append=0
-                    if c[2].value==0:
+                    if c[2].value==0 and np.sum(c[2].probs[c[0]-1])!=0:
                         move = copy.deepcopy(moveType)
                         move["player"] = key
                         move["cards"] = 1
@@ -336,7 +339,7 @@ class Player(object):
                             hintMoves.append(move)
 
                     append = 0
-                    if c[2].color=="":
+                    if c[2].color=="" and np.sum(c[2].probs[:, colors.index(c[1])])!=0:
                         move2 = copy.deepcopy(moveType)
                         move2["player"] = key
                         move2["cards"] = 1
@@ -389,7 +392,7 @@ class Player(object):
                 elif self.states[card.value-1, colors.index(card.color)]==1:
                     move["card"]=self.hand.index(card)
                     move["type"]="discard"
-                    move["chance"]=1
+                    move["chance"]=7
                     move["value"]=card.value
                     move["color"]=card.color
                     population.append(move)
