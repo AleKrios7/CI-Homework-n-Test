@@ -41,7 +41,7 @@ def selectMoves(population, hintMoves, hint, errors, hand, states):
         total += key["reward"]+offset*-1*(offset < 0)
     
     for key in availableMoves:
-        probsMoves.append((key["reward"]+offset*-1*(offset < 0))/total)
+        probsMoves.append((key["reward"]+offset*-1*(1 if offset < 0 else 0))/total)
 
     move = np.random.choice(availableMoves, 1, probsMoves)
      
@@ -106,9 +106,9 @@ def playCard(population, hand, e, p):
             
             if key["critical"] == 1:
                 losePoints = 6 - hand[key["card"]].value
-                playmoves[b]["reward"] = (playmoves[b]["chance"]*2*(1+2*p)-(1-playmoves[b]["chance"])*(losePoints+1))*(1 if p!=0 else 0)
+                playmoves[b]["reward"] = (playmoves[b]["chance"]*2*(1+2*p)-(1-playmoves[b]["chance"])*(losePoints+1))*(1 if p!=1 else 0)
             else:
-                playmoves[b]["reward"] = (playmoves[b]["chance"]*(2+p)-(1-key["chance"]))*(1 if p!=0 else 0)
+                playmoves[b]["reward"] = (playmoves[b]["chance"]*(2+p)-(1-key["chance"]))*(1 if p!=1 else 0)
 
     return playmoves
     

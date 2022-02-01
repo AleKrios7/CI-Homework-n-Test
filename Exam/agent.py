@@ -186,7 +186,7 @@ class Player(object):
                 card = [p for p in data.players if p.name == player][0].hand[-1]
                 #card = data.players['name'][player]['hand'][-1]
                 self.deckAvailableSelf[card.value - 1, colors.index(card.color)] -= 1
-                tuple = (card.value, card.color, self.teammates[player][-1][2])
+                tuple = (card.value, card.color, copy.deepcopy(self.teammates[player][-1][2]))
                 self.teammates[player].pop(-1)
                 self.teammates[player].append(tuple)
                 self.newStates(card.value - 1, colors.index(card.color))
