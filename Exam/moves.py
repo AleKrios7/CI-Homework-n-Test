@@ -1,5 +1,6 @@
 import numpy as np
 from numpy.random import choice
+import copy
 
 def mask(probs, deck):
         res2 = np.ma.make_mask(probs)
@@ -69,20 +70,20 @@ def playCard(population, hand, e, p):
 
     for key in population:
         if key["type"] == "play":
-            if len(playmoves)>0 and playmoves[-1]["card"] == key["card"]:
+            if len(playmoves)>0 and playmoves[-1]["card"] == key["card"] and playmoves[-1]["type"]=="play":
                 playmoves[-1]["chance"]+=key["chance"]
                 b=-1
-            elif len(playmoves)>1 and playmoves[-2]["card"] == key["card"]:
+            elif len(playmoves)>1 and playmoves[-2]["card"] == key["card"] and playmoves[-1]["type"]=="play":
                 playmoves[-2]["chance"]+=key["chance"]
                 b=-2
             else:
-                playmoves.append(key)
+                playmoves.append(copy.deepcopy(key))
                 b=-1
             
             
 
             if key["critical"] == 1:
-                losePoints = 6 - key["card"].value
+                losePoints = 6 - key["value"]
                 if key["value"] == 5:
                     playmoves[b]["reward"] = playmoves[b]["chance"]*(1 + p*2)*2-(1-playmoves[b]["chance"])*e*(losePoints+1)
                 else:
@@ -93,21 +94,21 @@ def playCard(population, hand, e, p):
                 else:
                     playmoves[b]["reward"] = playmoves[b]["chance"]-(1-playmoves[b]["chance"])*e
         else:
-            if len(playmoves)>0 and playmoves[-1]["card"] == key["card"]:
+            if len(playmoves)>0 and playmoves[-1]["card"] == key["card"] and playmoves[-1]["type"]=="discard":
                 playmoves[-1]["chance"]+=key["chance"]
                 b=-1
-            elif len(playmoves)>1 and playmoves[-2]["card"] == key["card"]:
+            elif len(playmoves)>1 and playmoves[-2]["card"] == key["card"] and playmoves[-1]["type"]=="discard":
                 playmoves[-2]["chance"]+=key["chance"]
                 b=-2
             else:
                 b=-1
-                playmoves.append(key)
+                playmoves.append(copy.deepcopy(key))
             
             if key["critical"] == 1:
                 losePoints = 6 - hand[key["card"]].value
-                playmoves[b]["reward"] = playmoves[b]["chance"]*2*(1+2*p)-(1-playmoves[b]["chance"])*(losePoints+1)
+                playmoves[b]["reward"] = (playmoves[b]["chance"]*2*(1+2*p)-(1-playmoves[b]["chance"])*(losePoints+1))*(1 if p!=0 else 0)
             else:
-                playmoves[b]["reward"] = playmoves[b]["chance"]*(2+p)-(1-key["chance"])
+                playmoves[b]["reward"] = (playmoves[b]["chance"]*(2+p)-(1-key["chance"]))*(1 if p!=0 else 0)
 
     return playmoves
     
@@ -133,7 +134,7 @@ def sendHint(hintMoves, p):
         aff = 1
         for i in range(m["cards"]):
             if m["critical"][i] == 1 and m["playable"][i] == 1:
-                pointsaved += 6 - m["cardValue"] + 1 +2*p*(m["cardValue"] == 5)
+                pointsaved += 6 - m["cardValue"][i] + 1 +2*p*(1 if m["cardValue"][i] == 5 else 0)
                 
             elif m["critical"][i] == 1:
                 pointsaved += 6 - m["cardValue"][i]

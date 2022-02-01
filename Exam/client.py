@@ -18,6 +18,8 @@ else:
 
 run = True
 
+me = ""
+
 statuses = ["Lobby", "Game", "GameHint"]
 
 status = statuses[0]
@@ -94,6 +96,7 @@ def play(card):
 def discard(card):
     s.send(GameData.ClientPlayerDiscardCardRequest(playerName, card).serialize())
 
+
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
     request = GameData.ClientPlayerAddData(playerName)
     s.connect((HOST, PORT))
@@ -159,10 +162,17 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
 
         if type(data) is GameData.ServerActionInvalid:
             dataOk = True
+
+            
+            
+            s.send(GameData.ClientGetGameStateRequest(playerName).serialize())
         
         if type(data) is GameData.ServerActionValid:
             dataOk = True
             me.update(data)
+
+            if data.player == playerName:
+                s.send(GameData.ClientGetGameStateRequest(playerName).serialize())
          
         if type(data) is GameData.ServerPlayerMoveOk:
             dataOk = True
