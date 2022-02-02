@@ -184,6 +184,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
 
         if type(data) is GameData.ServerPlayerThunderStrike:
             dataOk = True
+            print("wrong card played: ", data.lastPlayer, "played ", data.card.value, data.card.color)
             me.update(data)
             
             if data.player == playerName:
@@ -193,8 +194,6 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             dataOk = True
             me.update(data)
             
-            for i in data.positions:
-                print("\t" + str(i))
             if data.player == playerName:
                 s.send(GameData.ClientGetGameStateRequest(playerName).serialize())
             
@@ -213,5 +212,5 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             
         if not dataOk:
             print("Unknown or unimplemented data type: " +  str(type(data)))
-        print("[" + playerName + " - " + status + "]: ", end="")
+
         stdout.flush()

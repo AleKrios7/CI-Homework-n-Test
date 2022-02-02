@@ -5,12 +5,20 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: File corrente",
+            "name": "Python: Zeb",
             "type": "python",
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
             "args":["127.0.0.1", "1024", "zeb"]
+        },
+        {
+            "name": "Python: Ciccio",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args":["127.0.0.1", "1024", "ciccio"]
         }
     ]
 }
