@@ -1,24 +1,49 @@
 {
-    // Usare IntelliSense per informazioni sui possibili attributi.
-    // Al passaggio del mouse vengono visualizzate le descrizioni degli attributi esistenti.
-    // Per altre informazioni, visitare: https://go.microsoft.com/fwlink/?linkid=830387
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+
         {
             "name": "Python: Zeb",
             "type": "python",
             "request": "launch",
-            "program": "${file}",
+            "program": "${workspaceFolder}/Exam/client.py",
             "console": "integratedTerminal",
-            "args":["127.0.0.1", "1024", "zeb"]
+            "args": ["127.0.0.1", "1024", "zeb"]
+        }, 
+        {
+            "name": "Python: Croix",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/Exam/client.py",
+            "console": "integratedTerminal",
+            "args": ["127.0.0.1", "1024", "croix"]
         },
         {
             "name": "Python: Ciccio",
             "type": "python",
             "request": "launch",
-            "program": "${file}",
+            "program": "${workspaceFolder}/Exam/client.py",
             "console": "integratedTerminal",
-            "args":["127.0.0.1", "1024", "ciccio"]
-        }
+            "args": ["127.0.0.1", "1024", "ciccio"]
+        },
+        {
+            "name": "Server 2",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/Exam/server.py",
+            "console": "integratedTerminal",
+            "args": ["2"]
+        },
+        {
+            "name": "Server 3",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/Exam/server.py",
+            "console": "integratedTerminal",
+            "args": ["3"]
+        },
     ]
 }

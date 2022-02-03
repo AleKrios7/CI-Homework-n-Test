@@ -12,12 +12,15 @@ def selectMoves(population, hintMoves, hint, errors, hand, states):
     availableMoves = []
     #p = (8-hint)/8
     p = 1/(8.5-hint) - 1/8.5
+    if hint > 7:
+        p +=1
     #proporzionalità inversa su hint disponibili
 
     #e = (5 + errors*7)/(5 - errors) 
     e = 3**errors
 
-    plavMoves = playCard(population, hand, e, p)
+    population = sorted(population, key = lambda p: (p["card"], p["type"]), reverse = False)
+    plavMoves = playCard(population, hand, e, p, hint)
     plavMoves = sorted(plavMoves, key = lambda p: p["reward"], reverse = True)
     availableMoves.extend(plavMoves[0:2])
     if hint != 8:
@@ -30,8 +33,8 @@ def selectMoves(population, hintMoves, hint, errors, hand, states):
     availableMoves = sorted(availableMoves, key = lambda p: p["reward"], reverse = True)
     offset = availableMoves[-1]["reward"]
     if availableMoves[0]["reward"] > 0 and offset < 0:
-        availableMoves = list(filter(lambda move : move["reward"]>0, availableMoves))
-    elif availableMoves[0]["reward"] > 0:
+        availableMoves = list(filter(lambda m : m["reward"]>0.0, availableMoves)) #something doesn't work here
+    elif availableMoves[0]["reward"] < 0:
         tmp = []
         tmp.append(availableMoves[0])
         availableMoves.clear()
@@ -46,7 +49,7 @@ def selectMoves(population, hintMoves, hint, errors, hand, states):
 
     return move
 
-def playCard(population, hand, e, p):
+def playCard(population, hand, e, p, hint):
     
     # move = {
     #             "card":0,
@@ -81,7 +84,7 @@ def playCard(population, hand, e, p):
                     playmoves[b]["reward"] = playmoves[b]["chance"]*(1+p*2)-(1-playmoves[b]["chance"])*e
                 else:
                     playmoves[b]["reward"] = playmoves[b]["chance"]*(1+p*2)-(1-playmoves[b]["chance"])*e
-        elif key["type"] == "discard" and p!=0:
+        elif key["type"] == "discard" and hint!=8:
             if len(playmoves)>0 and playmoves[-1]["card"] == key["card"] and playmoves[-1]["type"]=="discard":
                 playmoves[-1]["chance"]+=key["chance"]
                 b=-1

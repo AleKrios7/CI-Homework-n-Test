@@ -146,12 +146,17 @@ class Player(object):
                 self.teammates[name] = copy.deepcopy(hand)
 
     def newStates(self, i, j):
-        if(self.deckAvailableSelf[i,j] != 0):
+        if(i == 5):
+            return
+        if(deckAvailableOthers[i,j] != 0):
+            play = (i == table[j])
             if i+1<=table[j]:
                 crit = False
+            elif i!=0 and i+1>table[j] and self.states[table[j]:i+1,j].min() == 0:
+                crit = False
+                play = False
             else :
-                crit = self.deckAvailableSelf[i][j]==1
-            play = (i == table[j])
+                crit = deckAvailableOthers[i][j]==1
             if(not crit and not play): #discardable
                 self.states[i,j] = 1
             elif(crit and not play):   #critical no playable
@@ -162,6 +167,10 @@ class Player(object):
                 self.states[i,j] = 4   #playable and critical
         else:
             self.states[i,j] = 0           #not in game anymore :(
+        self.newStates(i+1, j)
+        
+
+    
   
     def update(self, data):  #entra qui se ricevo hint o se qualcuno/io gioco/scarto
                              #aggiorna saved decks
@@ -183,33 +192,31 @@ class Player(object):
             
             hint = data.usedNoteTokens
             errors = data.usedStormTokens
-            count = len(self.toServe)
+            #count = len(self.toServe)
             for player in self.toServe:
                 card = copy.deepcopy([p for p in data.players if p.name == player][0].hand[-1])
                 #card = data.players['name'][player]['hand'][-1]
                 self.deckAvailableSelf[card.value - 1, colors.index(card.color)] -= 1
                 tuple = [card.value, card.color, copy.deepcopy(self.teammates[player][-1][2])]
+                tuple[2].calcProb(deckAvailableOthers)
                 self.teammates[player].pop(-1)
                 self.teammates[player].append(tuple)
                 self.newStates(card.value - 1, colors.index(card.color))
+                if(card.value != 5):
+                    self.newStates(card.value, colors.index(card.color))
                 self.toServe.pop(self.toServe.index(player))
                 
             
-            if count > 0 or self.first==0:
+            if self.first==0:
                 self.first=1
                 for i in range(len(self.hand)):
                     self.hand[i].calcProb(self.deckAvailableSelf)
-                #for t in data.tableCards.keys():
-                #    if len(data.tableCards[t]):
-                #        table[colors.index(t)] = data.tableCards[t][-1].value
-
                 for key in data.players:
                     name = key.name
                     if name!=self.name:
                         hand = []
                         for c in key.hand:
                             newCard = Card()
-                            
                             newCard.calcProb(deckAvailableOthers)
                             hand.append([c.value, c.color, copy.deepcopy(newCard)])
                         self.teammates[name] = copy.deepcopy(hand)
@@ -222,19 +229,24 @@ class Player(object):
             #lastplayer -> string giocatore che ha giocato
             #player -> giocatore che deve giocare
             if type(data) is GameData.ServerPlayerMoveOk:
-                ##qui?
                 table[colors.index(data.card.color)]= data.card.value
-
+            if type(data) is GameData.ServerPlayerThunderStrike and data.lastPlayer == self.name:
+                print("Vez minchia fai")
 
             if(data.lastPlayer == self.name):
                 self.deckAvailableSelf[data.card.value - 1, colors.index(data.card.color)] -= 1
                 deckAvailableOthers[data.card.value - 1, colors.index(data.card.color)] -=1
                 self.newStates(data.card.value - 1, colors.index(data.card.color))
+                if(data.card.value-1 != 4):
+                    self.newStates(data.card.value, colors.index(data.card.color))
             else:
                 self.toServe.append(data.lastPlayer)
+                deckAvailableOthers[data.card.value - 1, colors.index(data.card.color)] -=1
                 for i in range(len(self.teammates[data.lastPlayer])):
                     if(self.teammates[data.lastPlayer][i][0] == (data.card.value) and self.teammates[data.lastPlayer][i][1] == data.card.color and data.cardHandIndex == i):
                         self.newStates(data.card.value-1,colors.index(data.card.color))
+                        if(data.card.value-1 != 4):
+                            self.newStates(data.card.value, colors.index(data.card.color))
                         self.teammates[data.lastPlayer].pop(i)
                         self.teammates[data.lastPlayer].append([0,"", Card()])
         elif(type(data) is GameData.ServerHintData ):  ##hint has been given, update local cards
@@ -271,7 +283,7 @@ class Player(object):
                     
                     append=0
             #we check if the sum of the values probabilities is 0 or 1, that would mean we have already hinted that value
-                    if c[2].value==0 and np.sum(c[2].probs[c[0]-1])!=0 and np.sum(c[2].probs[c[0]-1])<1:
+                    if c[2].value==0 and np.sum(c[2].probs[c[0]-1])!=0 and np.sum(c[2].probs[c[0]-1])!=1:
                         move = copy.deepcopy(moveType)
                         move["player"] = key
                         move["cards"] = 1
@@ -296,7 +308,7 @@ class Player(object):
                             hintMoves.append(move)        
 
                    #same checks as before but for the color 
-                    elif c[2].color=="" and np.sum(c[2].probs[:, colors.index(c[1])])!=0 and np.sum(c[2].probs[:, colors.index(c[1])])<1:
+                    elif c[2].color=="" and np.sum(c[2].probs[:, colors.index(c[1])])!=0 and np.sum(c[2].probs[:, colors.index(c[1])])!=1:
                         append=0
                         move2 = copy.deepcopy(moveType)
                         move2["player"] = key
@@ -481,7 +493,7 @@ class Player(object):
                     move["card"]=self.hand.index(card)
                     move["type"]="play"
                     move["chance"]=1
-                    move["critical"]= int(self.states[card.value-1, colors.index(card.color)]==4)
+                    move["critical"] = int(self.states[card.value-1, colors.index(card.color)]==4)
                     move["value"]=card.value
                     move["color"]=card.color
                     population.append(move)
@@ -561,8 +573,8 @@ class Player(object):
         population.clear()
         moveType = {
                 "card":0,
-                "type":"",
-                "critical":0,
+                "type":"discard",
+                "critical":1,
                 "chance":0,
                 "value": 0,
                 "color":""
@@ -574,7 +586,6 @@ class Player(object):
             if card.value!=0 and card.color!="":
                 move = moveType.copy()
                 move["card"]=self.hand.index(card)
-                move["type"]="discard"
                 move["chance"]=1
                 move["value"]=card.value
                 move["color"]=card.color
@@ -585,7 +596,6 @@ class Player(object):
                     move = moveType.copy()
                     cardTmp.color=color
                     move["card"]=self.hand.index(card)
-                    move["type"]="discard"
                     move["chance"]=cardTmp.probs[cardTmp.value-1, colors.index(cardTmp.color)]
                     move["value"]=cardTmp.value
                     move["color"]=cardTmp.color
@@ -596,7 +606,6 @@ class Player(object):
                     move = moveType.copy()
                     cardTmp.value=i+1
                     move["card"]=self.hand.index(card)
-                    move["type"]="discard"
                     move["chance"]=cardTmp.probs[cardTmp.value-1, colors.index(cardTmp.color)]
                     move["value"]=cardTmp.value
                     move["color"]=cardTmp.color
@@ -609,7 +618,6 @@ class Player(object):
                         cardTmp.value=i+1
                         cardTmp.color=colors[j]
                         move["card"]=self.hand.index(card)
-                        move["type"]="discard"
                         move["chance"]=cardTmp.probs[cardTmp.value-1, colors.index(cardTmp.color)]
                         move["value"]=cardTmp.value
                         move["color"]=cardTmp.color
