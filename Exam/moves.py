@@ -17,14 +17,6 @@ def selectMoves(population, hintMoves, hint, errors, hand, states):
     #e = (5 + errors*7)/(5 - errors) 
     e = 3**errors
 
-    c = -1
-
-    #bp - d(1-p)
-        
-    #while c==-1:
-    #    c = choice([1,0], 1, p)
-
-
     plavMoves = playCard(population, hand, e, p)
     plavMoves = sorted(plavMoves, key = lambda p: p["reward"], reverse = True)
     availableMoves.extend(plavMoves[0:2])
@@ -39,24 +31,22 @@ def selectMoves(population, hintMoves, hint, errors, hand, states):
     offset = availableMoves[-1]["reward"]
     if availableMoves[0]["reward"] > 0 and offset < 0:
         availableMoves = list(filter(lambda move : move["reward"]>0, availableMoves))
+    elif availableMoves[0]["reward"] > 0:
+        tmp = []
+        tmp.append(availableMoves[0])
+        availableMoves.clear()
+        availableMoves.append(tmp[0])
     for key in availableMoves:
         total += key["reward"]+offset*(-1)*int(availableMoves[0]["reward"] < 0)
     
     for key in availableMoves:
-        probsMoves.append((key["reward"]+offset*(-1)*int(offset < 0))/total)
+        probsMoves.append((key["reward"]+offset*(-1)*int(availableMoves[0]["reward"] < 0))/total)
 
     move = np.random.choice(availableMoves, 1, probsMoves)
 
     return move
 
 def playCard(population, hand, e, p):
-    playprobs = np.array([   #row = value  column = color
-        [-1,-1,-1,-1,-1],
-        [-1,-1,-1,-1,-1],
-        [-1,-1,-1,-1,-1],
-        [-1,-1,-1,-1,-1],
-        [-1,-1,-1,-1,-1]
-    ], dtype="float")
     
     # move = {
     #             "card":0,
@@ -65,8 +55,6 @@ def playCard(population, hand, e, p):
     #             "chance":0,
     #         }
     #bonuses and penalties
-    points = 0
-    errors = 0
     losePoints = 0
     playmoves = []
 
@@ -81,21 +69,19 @@ def playCard(population, hand, e, p):
             else:
                 playmoves.append(copy.deepcopy(key))
                 b=-1
-            
-            
 
             if key["critical"] == 1:
                 losePoints = 6 - key["value"]
                 if key["value"] == 5:
-                    playmoves[b]["reward"] = playmoves[b]["chance"]*(1 + p*2)*2-(1-playmoves[b]["chance"])*e*(losePoints+1)
+                    playmoves[b]["reward"] = playmoves[b]["chance"]*(1 + p*2)-(1-playmoves[b]["chance"])*e*(losePoints+1)
                 else:
-                    playmoves[b]["reward"] = playmoves[b]["chance"]*2-(1-playmoves[b]["chance"])*e*(losePoints+1)
+                    playmoves[b]["reward"] = playmoves[b]["chance"]-(1-playmoves[b]["chance"])*e*(losePoints+1)
             else:
                 if key["value"] == 5:
                     playmoves[b]["reward"] = playmoves[b]["chance"]*(1+p*2)-(1-playmoves[b]["chance"])*e
                 else:
-                    playmoves[b]["reward"] = playmoves[b]["chance"]-(1-playmoves[b]["chance"])*e
-        elif p!=0:
+                    playmoves[b]["reward"] = playmoves[b]["chance"]*(1+p*2)-(1-playmoves[b]["chance"])*e
+        elif key["type"] == "discard" and p!=0:
             if len(playmoves)>0 and playmoves[-1]["card"] == key["card"] and playmoves[-1]["type"]=="discard":
                 playmoves[-1]["chance"]+=key["chance"]
                 b=-1
@@ -105,12 +91,13 @@ def playCard(population, hand, e, p):
             else:
                 b=-1
                 playmoves.append(copy.deepcopy(key))
+
             
             if key["critical"] == 1:
                 losePoints = 6 - hand[key["card"]].value
-                playmoves[b]["reward"] = playmoves[b]["chance"]*(1+p)-(1-playmoves[b]["chance"])*(losePoints+1)
+                playmoves[b]["reward"] = playmoves[b]["chance"]*(p)-(1-playmoves[b]["chance"])*(losePoints+1)
             else:
-                playmoves[b]["reward"] = playmoves[b]["chance"]*(2+p)-(1-playmoves[b]["chance"])
+                playmoves[b]["reward"] = playmoves[b]["chance"]*(p)-(1-playmoves[b]["chance"])
 
     return playmoves
     
@@ -133,7 +120,7 @@ def sendHint(hintMoves, p):
     for m in hintMoves:
         tot = 0
         pointsaved = 0
-        aff = 1
+        aff = 1.3
         for i in range(m["cards"]):
             if m["critical"][i] == 1 and m["playable"][i] == 1:
                 pointsaved += 6 - m["cardValue"][i] + 1 +2*p*(1 if m["cardValue"][i] == 5 else 0)

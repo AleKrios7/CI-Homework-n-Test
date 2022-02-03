@@ -2,6 +2,7 @@
 
 from sys import argv, stdout
 from threading import Thread
+import time
 import GameData
 import socket
 from constants import *
@@ -111,6 +112,8 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
 
     s.send(GameData.ClientPlayerStartRequest(playerName).serialize()) #auto-ready
 
+    first = 1
+    bufferHint = []
     while run:
         dataOk = False
 
@@ -138,13 +141,23 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.send(GameData.ClientPlayerReadyData(playerName).serialize())
             status = statuses[1]
             
-
+            
             s.send(GameData.ClientGetGameStateRequest(playerName).serialize()) #show for start game
-            data = s.recv(DATASIZE)
-            data = GameData.GameData.deserialize(data)
-            me.startgame(data)
+            first = 1
+            #data = s.recv(DATASIZE)
+            #data = GameData.GameData.deserialize(data)
+            #me.startgame(data)
 
         if type(data) is GameData.ServerGameStateData:
+            if first == 1:
+                first = 0
+                me.startgame(data)
+                for h in bufferHint:
+                    dataOk = True
+                    me.update(data)
+                    if data.player == playerName:
+                        s.send(GameData.ClientGetGameStateRequest(playerName).serialize())
+                bufferHint.clear()
             
             dataOk = True
 
@@ -160,26 +173,27 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 else:
                     discard(move[0]["card"])
 
-        if type(data) is GameData.ServerActionInvalid:
+        if type(data) is GameData.ServerActionInvalid and first==0:
             dataOk = True
 
-            
-            
             s.send(GameData.ClientGetGameStateRequest(playerName).serialize())
+            time.sleep(0.5)
         
-        if type(data) is GameData.ServerActionValid:
+        if type(data) is GameData.ServerActionValid and first==0:
             dataOk = True
             me.update(data)
 
             if data.player == playerName:
                 s.send(GameData.ClientGetGameStateRequest(playerName).serialize())
+                time.sleep(0.5)
          
-        if type(data) is GameData.ServerPlayerMoveOk:
+        if type(data) is GameData.ServerPlayerMoveOk and first==0:
             dataOk = True
             me.update(data)
         
             if data.player == playerName:
                 s.send(GameData.ClientGetGameStateRequest(playerName).serialize())
+                time.sleep(0.5)
 
 
         if type(data) is GameData.ServerPlayerThunderStrike:
@@ -189,13 +203,18 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             
             if data.player == playerName:
                 s.send(GameData.ClientGetGameStateRequest(playerName).serialize())
+                time.sleep(0.5)
 
         if type(data) is GameData.ServerHintData:
-            dataOk = True
-            me.update(data)
-            
-            if data.player == playerName:
-                s.send(GameData.ClientGetGameStateRequest(playerName).serialize())
+            if first == 1:
+                bufferHint.append(data)
+            else:
+                dataOk = True
+                me.update(data)
+                
+                if data.player == playerName:
+                    s.send(GameData.ClientGetGameStateRequest(playerName).serialize())
+                    time.sleep(0.5)
             
         if type(data) is GameData.ServerInvalidDataReceived:
             dataOk = True
