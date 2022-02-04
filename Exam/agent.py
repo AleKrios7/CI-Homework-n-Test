@@ -1,3 +1,4 @@
+from cmath import nan
 from moves import selectMoves
 import GameData
 import numpy as np
@@ -39,9 +40,10 @@ class Card(object):
             return c
 
         def mask(self, probs, deck):
-                res2 = np.ma.make_mask(probs)
-                res3 = np.ma.masked_array(deck, np.invert(res2), fill_value=0)
-                return res3.filled()
+
+            res2 = np.ma.make_mask(probs)
+            res3 = np.ma.masked_array(deck, np.invert(res2), fill_value=0)
+            return res3.filled()
         
         def calcProb(self, deck):
             #calcolo probabilità cambiamento del deck (play/discard)
@@ -70,13 +72,13 @@ class Card(object):
                     self.value = hint.value
                     for x in range(5):
                         if(x != hint.value-1):
-                            self.probs[x, :]=0
+                            self.probs[x, 0:5]=0
                 else:
-                    self.probs[hint.value-1, :] = 0
+                    self.probs[hint.value-1, 0:5] = 0
                     self.calcProb(deck)
-                    isValue = np.sum(self.probs, axis=1)[0]            #checks if a value is found with exclusion
-                    x = np.where(isValue == 1)
-                    if x[0].size != 0:
+                    isValue = np.sum(self.probs, axis=1)            #checks if a value is found with exclusion
+                    x = np.where(isValue == 1)[0]
+                    if x.size != 0:
                         self.value=x[0]+1
                     
                         
@@ -94,10 +96,9 @@ class Card(object):
                     isColor = np.sum(self.probs, axis=0)               #checks if a color is found with exclusion
                     y = np.where(isColor == 1)[0]
                     if y.size != 0:
-                        self.value=colors[y[0]]
-                
+                        self.color=colors[y[0]]
+
             self.calcProb(deck)
-            
                     
 
 class Player(object):  
@@ -200,11 +201,12 @@ class Player(object):
                 tuple = [card.value, card.color, copy.deepcopy(self.teammates[player][-1][2])]
                 tuple[2].calcProb(deckAvailableOthers)
                 self.teammates[player].pop(-1)
-                self.teammates[player].append(tuple)
+                self.teammates[player].append(copy.deepcopy(tuple))
                 self.newStates(card.value - 1, colors.index(card.color))
                 if(card.value != 5):
                     self.newStates(card.value, colors.index(card.color))
-                self.toServe.pop(self.toServe.index(player))
+                
+            self.toServe.clear()
                 
             
             if self.first==0:
@@ -248,7 +250,9 @@ class Player(object):
                         if(data.card.value-1 != 4):
                             self.newStates(data.card.value, colors.index(data.card.color))
                         self.teammates[data.lastPlayer].pop(i)
-                        self.teammates[data.lastPlayer].append([0,"", Card()])
+                        tuple = [0, "", Card()]
+                        tuple[2].calcProb(deckAvailableOthers)
+                        self.teammates[data.lastPlayer].append(tuple)
         elif(type(data) is GameData.ServerHintData ):  ##hint has been given, update local cards
             if data.destination == self.name:
                 for i in range(len(self.hand)):
@@ -270,16 +274,25 @@ class Player(object):
                 "cardValue":[],
                 "cardColor": []
             }
-
         
-
         for key in self.teammates.keys():
             hand = self.teammates[key]
             for c in hand:
+                stat = -1
+                isUseful = False
+                for i in range(5):
+                    for j in range(5):
+                        if c[2].probs[i,j]>0:
+                            if stat == -1:
+                                stat = self.states[i,j]
+                            else:
+                                if stat != self.states[i,j]:
+                                    isUseful = True
+
                 #checks if card is critical #c[0]-1 is the value  #colors.index(c[1]) is the color
                 #if state is >2 means that is critical
                 #we also check if the hint was already given by checking the probabilities theorized about the other player
-                if self.states[c[0]-1,colors.index(c[1])] > 2 and c[2].probs[c[0]-1,colors.index(c[1])]!=0 and c[2].probs[c[0]-1,colors.index(c[1])]!=1:
+                if isUseful and self.states[c[0]-1,colors.index(c[1])] > 2 and c[2].probs[c[0]-1,colors.index(c[1])]!=0 and c[2].probs[c[0]-1,colors.index(c[1])]!=1:
                     
                     append=0
             #we check if the sum of the values probabilities is 0 or 1, that would mean we have already hinted that value
@@ -308,7 +321,7 @@ class Player(object):
                             hintMoves.append(move)        
 
                    #same checks as before but for the color 
-                    elif c[2].color=="" and np.sum(c[2].probs[:, colors.index(c[1])])!=0 and np.sum(c[2].probs[:, colors.index(c[1])])!=1:
+                    elif c[2].color=="" and np.sum(c[2].probs[:, colors.index(c[1])])!=0 and np.sum(c[2].probs[:, colors.index(c[1])])!=1 and self.states[c[0]-1,colors.index(c[1])] == 4:
                         append=0
                         move2 = copy.deepcopy(moveType)
                         move2["player"] = key
@@ -352,8 +365,18 @@ class Player(object):
         for key in self.teammates.keys():
             hand = self.teammates[key]
             for c in hand:
+                stat = -1
+                isUseful = False
+                for i in range(5):
+                    for j in range(5):
+                        if c[2].probs[i,j]>0:
+                            if stat == -1:
+                                stat = self.states[i,j]
+                            else:
+                                if stat != self.states[i,j]:
+                                    isUseful = True
                 #functioning similar to criticalhint, changes to flags
-                if self.states[c[0]-1,colors.index(c[1])] == 2 and c[2].probs[c[0]-1,colors.index(c[1])]!=0 and c[2].probs[c[0]-1,colors.index(c[1])]!=1:
+                if isUseful and self.states[c[0]-1,colors.index(c[1])] == 2 and c[2].probs[c[0]-1,colors.index(c[1])]!=0 and c[2].probs[c[0]-1,colors.index(c[1])]!=1:
                     append=0
                     if c[2].value==0 and np.sum(c[2].probs[c[0]-1])!=0 and np.sum(c[2].probs[c[0]-1])!=1:
                         move = copy.deepcopy(moveType)
@@ -422,7 +445,7 @@ class Player(object):
             hand = self.teammates[key]
             for c in hand:
                 #functioning similar to criticalhint, changes to flags
-                if self.states[c[0]-1,colors.index(c[1])] == 2 and c[2].probs[c[0]-1,colors.index(c[1])]!=0 and c[2].probs[c[0]-1,colors.index(c[1])]!=1:
+                if self.states[c[0]-1,colors.index(c[1])] == 1 and c[2].probs[c[0]-1,colors.index(c[1])]!=0 and c[2].probs[c[0]-1,colors.index(c[1])]!=1:
                     append=0
                     if c[2].value==0 and np.sum(c[2].probs[c[0]-1])!=0 and np.sum(c[2].probs[c[0]-1])!=1:
                         move = copy.deepcopy(moveType)
@@ -633,7 +656,7 @@ class Player(object):
             self.criticalHint()
         if len(hintMoves) == 0 and hint < 8:
             self.discardableHint()
-        if len(population) == 0 and len(hintMoves) == 0:
+        if len(hintMoves) == 0:
             self.discardIfAllCritical()
 
         move = selectMoves(population, hintMoves, hint, errors, self.hand, self.states)

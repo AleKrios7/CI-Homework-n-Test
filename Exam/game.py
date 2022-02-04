@@ -212,7 +212,7 @@ class Game(object):
             else:
                 self.__drawCard(player.name)
                 logging.info("Player: " + self.__getCurrentPlayer().name +
-                             ": card " + str(card.id) + " discarded successfully")
+                             ": card " + str(card.value) + str(card.color) + " discarded successfully")
                 self.__nextTurn()
                 # ! ADDED last param. see GameData relative comment in ServerActionValid
                 return (None, GameData.ServerActionValid(self.__getCurrentPlayer().name, player.name, "discard", card, data.handCardOrdered, len(player.hand)))
@@ -241,7 +241,7 @@ class Game(object):
                 # ! ADDED last param. see GameData relative comment of GameData.ServerPlayerThunderStrike
                 return (None, GameData.ServerPlayerThunderStrike(self.__getCurrentPlayer().name, p.name, card, data.handCardOrdered, len(p.hand)))
             else:
-                logging.info(self.__getCurrentPlayer().name +
+                logging.info(self.__getCurrentPlayer().name + str(card.value) + str(card.color) + 
                              ": card played and correctly put on the table")
                 if card.value == 5:
                     logging.info(card.color + " pile has been filled.")

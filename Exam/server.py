@@ -5,7 +5,6 @@ from game import Game
 from game import Player
 import threading
 from constants import *
-#from signal import signal, SIGPIPE, SIG_DFL
 import logging
 import sys
 

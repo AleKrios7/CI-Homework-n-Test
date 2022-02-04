@@ -10,30 +10,31 @@ def mask(probs, deck):
 def selectMoves(population, hintMoves, hint, errors, hand, states):
 
     availableMoves = []
-    #p = (8-hint)/8
     p = 1/(8.5-hint) - 1/8.5
     if hint > 7:
-        p +=1
+        p *=2
     #proporzionalità inversa su hint disponibili
 
     #e = (5 + errors*7)/(5 - errors) 
-    e = 3**errors
+    e = 3**errors +1
 
     population = sorted(population, key = lambda p: (p["card"], p["type"]), reverse = False)
-    plavMoves = playCard(population, hand, e, p, hint)
-    plavMoves = sorted(plavMoves, key = lambda p: p["reward"], reverse = True)
-    availableMoves.extend(plavMoves[0:2])
+    playMoves = playCard(population, hand, e, p, hint)
+    playMoves = sorted(playMoves, key = lambda p: p["reward"], reverse = True)
+    
     if hint != 8:
         hintMoves = sendHint(hintMoves, p)
         hintMoves = sorted(hintMoves, key = lambda p: p["reward"], reverse = True)
-        availableMoves.extend(hintMoves[0:2])
-    
+        
+    availableMoves.extend(playMoves)
+    availableMoves.extend(hintMoves)
+    availableMoves = sorted(availableMoves, key = lambda p: p["reward"], reverse = True)
+    availableMoves = list(filter(lambda b : availableMoves[0]["reward"]-b["reward"]<=1.5, availableMoves))
     probsMoves = []
     total = 0
-    availableMoves = sorted(availableMoves, key = lambda p: p["reward"], reverse = True)
     offset = availableMoves[-1]["reward"]
     if availableMoves[0]["reward"] > 0 and offset < 0:
-        availableMoves = list(filter(lambda m : m["reward"]>0.0, availableMoves)) #something doesn't work here
+        availableMoves = list(filter(lambda m : m["reward"]>0.0, availableMoves))
     elif availableMoves[0]["reward"] < 0:
         tmp = []
         tmp.append(availableMoves[0])
@@ -74,17 +75,18 @@ def playCard(population, hand, e, p, hint):
                 b=-1
 
             if key["critical"] == 1:
-                losePoints = 6 - key["value"]
+                losePoints = (6 - key["value"])*key["chance"]
+                
                 if key["value"] == 5:
                     playmoves[b]["reward"] = playmoves[b]["chance"]*(1 + p*2)-(1-playmoves[b]["chance"])*e*(losePoints+1)
                 else:
-                    playmoves[b]["reward"] = playmoves[b]["chance"]-(1-playmoves[b]["chance"])*e*(losePoints+1)
+                    playmoves[b]["reward"] = playmoves[b]["chance"](1 + p*2)-(1-playmoves[b]["chance"])*e*(losePoints+1)
             else:
                 if key["value"] == 5:
-                    playmoves[b]["reward"] = playmoves[b]["chance"]*(1+p*2)-(1-playmoves[b]["chance"])*e
+                    playmoves[b]["reward"] = playmoves[b]["chance"]*(2 + p*2)-(1-playmoves[b]["chance"])*e
                 else:
-                    playmoves[b]["reward"] = playmoves[b]["chance"]*(1+p*2)-(1-playmoves[b]["chance"])*e
-        elif key["type"] == "discard" and hint!=8:
+                    playmoves[b]["reward"] = playmoves[b]["chance"]*(2 + p*2)-(1-playmoves[b]["chance"])*e
+        elif key["type"] == "discard" and hint!=0:
             if len(playmoves)>0 and playmoves[-1]["card"] == key["card"] and playmoves[-1]["type"]=="discard":
                 playmoves[-1]["chance"]+=key["chance"]
                 b=-1
@@ -123,7 +125,7 @@ def sendHint(hintMoves, p):
     for m in hintMoves:
         tot = 0
         pointsaved = 0
-        aff = 1.3
+        aff = 1
         for i in range(m["cards"]):
             if m["critical"][i] == 1 and m["playable"][i] == 1:
                 pointsaved += 6 - m["cardValue"][i] + 1 +2*p*(1 if m["cardValue"][i] == 5 else 0)
@@ -134,6 +136,10 @@ def sendHint(hintMoves, p):
                 bonusPoints+=.5
 
             else:
+                if m["type"] =="color" and m["playable"][i]==0:
+                    bonusPoints= -.7
+                elif m["type"] =="color" and m["playable"][i]==1:
+                    bonusPoints = -.3
                 pointsaved += 1 +2*p*(m["cardValue"] == 5)
         tot += aff * pointsaved - 2*p + bonusPoints
         m["reward"] = tot
