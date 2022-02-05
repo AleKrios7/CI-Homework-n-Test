@@ -2,7 +2,6 @@
 
 from sys import argv, stdout
 from threading import Thread
-import time
 import GameData
 import socket
 from constants import *
@@ -87,7 +86,7 @@ def manageInput():
             continue
         stdout.flush()
 
-
+#funzions to send moves to server
 def sendHint(destination, type, value):
     s.send(GameData.ClientHintData(playerName, destination, type, value).serialize())
 
@@ -114,6 +113,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
 
     first = 1
     bufferHint = []
+    #main cycle for game
     while run:
         dataOk = False
 
@@ -134,9 +134,10 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             dataOk = True
             print("Game start!")
 
+            #starting cards in hand
             cards = 4 if len(data.players) > 3 else 5
-                       
-            me = agent.Player(cards, argv[3], 1)
+            #init player
+            me = agent.Player(cards, argv[3])
 
             s.send(GameData.ClientPlayerReadyData(playerName).serialize())
             status = statuses[1]
@@ -144,14 +145,14 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             
             s.send(GameData.ClientGetGameStateRequest(playerName).serialize()) #show for start game
             first = 1
-            #data = s.recv(DATASIZE)
-            #data = GameData.GameData.deserialize(data)
-            #me.startgame(data)
 
+        
         if type(data) is GameData.ServerGameStateData:
+            #sync mechanism for first show
             if first == 1:
                 first = 0
                 me.startgame(data)
+                #manage hint out of sync
                 for h in bufferHint:
                     dataOk = True
                     me.update(data)
@@ -160,9 +161,10 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 bufferHint.clear()
             
             dataOk = True
-
+            #update player info with show information
             me.update(data)
 
+            #if player turn -> select move and act
             if data.currentPlayer == playerName:
                 move = me.play()
 
@@ -175,11 +177,12 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
 
         if type(data) is GameData.ServerActionInvalid and first==0:
             dataOk = True
-
+            #something happened check if everything is ok + useful updates
             s.send(GameData.ClientGetGameStateRequest(playerName).serialize())
         
         if type(data) is GameData.ServerActionValid and first==0:
             dataOk = True
+            #someone discarded -> check and update
             me.update(data)
 
             if data.player == playerName:
@@ -188,6 +191,8 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
          
         if type(data) is GameData.ServerPlayerMoveOk and first==0:
             dataOk = True
+
+            #someone made a move -> check and update
             me.update(data)
         
             if data.player == playerName:
@@ -198,6 +203,8 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         if type(data) is GameData.ServerPlayerThunderStrike:
             dataOk = True
             print("wrong card played: ", data.lastPlayer, "played ", data.card.value, data.card.color)
+
+            #someone made a mistake -> check and update
             me.update(data)
             
             if data.player == playerName:
@@ -209,6 +216,8 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 bufferHint.append(data)
             else:
                 dataOk = True
+
+                #someone sent a hint -> check and update
                 me.update(data)
                 
                 if data.player == playerName:
@@ -220,6 +229,9 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         
         if type(data) is GameData.ServerGameOver:
             dataOk = True
+
+            #endgame
+
             print(data.message)
             print(data.score)
             print(data.scoreMessage)
