@@ -177,7 +177,6 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             dataOk = True
 
             s.send(GameData.ClientGetGameStateRequest(playerName).serialize())
-            time.sleep(0.5)
         
         if type(data) is GameData.ServerActionValid and first==0:
             dataOk = True
@@ -185,7 +184,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
 
             if data.player == playerName:
                 s.send(GameData.ClientGetGameStateRequest(playerName).serialize())
-                time.sleep(0.5)
+                
          
         if type(data) is GameData.ServerPlayerMoveOk and first==0:
             dataOk = True
@@ -193,7 +192,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         
             if data.player == playerName:
                 s.send(GameData.ClientGetGameStateRequest(playerName).serialize())
-                time.sleep(0.5)
+                
 
 
         if type(data) is GameData.ServerPlayerThunderStrike:
@@ -203,7 +202,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             
             if data.player == playerName:
                 s.send(GameData.ClientGetGameStateRequest(playerName).serialize())
-                time.sleep(0.5)
+                
 
         if type(data) is GameData.ServerHintData:
             if first == 1:
@@ -214,7 +213,6 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 
                 if data.player == playerName:
                     s.send(GameData.ClientGetGameStateRequest(playerName).serialize())
-                    time.sleep(0.5)
             
         if type(data) is GameData.ServerInvalidDataReceived:
             dataOk = True

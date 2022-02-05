@@ -14,6 +14,7 @@ population = []
 hintMoves = []
 hint = 0
 errors = 0
+memory = []
 
 class Card(object):
         
@@ -54,12 +55,21 @@ class Card(object):
             #discardPile = [card list of discarded cards] 
             #usedNoteToken = numero di hint dati 0-8
             #usedStormTokens = numero di errori 0-2 (a 3 la partita finisce)
-            tot = 0
-            m = self.mask(self.probs, deck)
-            tot = np.sum(m)
-            self.probs = m/tot
+            if self.value == 0 or self.color == "":
+                tot = 0
+                m = self.mask(self.probs, deck)
+                tot = np.sum(m)
+                self.probs = m/tot
+                if self.probs.max() == 1.0:
+                    indexes = np.where(self.probs == 1.0)   
+                    row = indexes[0][0]
+                    col = indexes[1][0]
+                    self.value = row+1
+                    self.color = colors[col]
+                
         
         def calcHint(self, hint, mypos, deck):
+            global memory
 
             #calcolo probabilità ricezione indizi (hint)
             #hint.type             value o color (type)
@@ -99,6 +109,7 @@ class Card(object):
                         self.color=colors[y[0]]
 
             self.calcProb(deck)
+            
                     
 
 class Player(object):  
@@ -125,6 +136,7 @@ class Player(object):
     global colors
     global table
     global deckAvailableOthers
+    global memory
     
     def __init__(self, cards, name, isMe) -> None:
         super().__init__()
@@ -178,6 +190,7 @@ class Player(object):
         global hint
         global errors
         global deckAvailableOthers
+        global memory
         if(type(data) is GameData.ServerGameStateData):                         
             ##show has been called, update is needed
             #TODO: modifica deck values using data
@@ -212,7 +225,8 @@ class Player(object):
             if self.first==0:
                 self.first=1
                 for i in range(len(self.hand)):
-                    self.hand[i].calcProb(self.deckAvailableSelf)
+                    memory.append(0)
+                    self.hand[i].calcProb(self.deckAvailableSelf) 
                 for key in data.players:
                     name = key.name
                     if name!=self.name:
@@ -236,8 +250,11 @@ class Player(object):
                 print("Vez minchia fai")
 
             if(data.lastPlayer == self.name):
-                self.deckAvailableSelf[data.card.value - 1, colors.index(data.card.color)] -= 1
+                if(memory[data.cardHandIndex]!=1):
+                    self.deckAvailableSelf[data.card.value - 1, colors.index(data.card.color)] -= 1
                 deckAvailableOthers[data.card.value - 1, colors.index(data.card.color)] -=1
+                memory.pop(data.cardHandIndex)
+                memory.append(0)
                 self.newStates(data.card.value - 1, colors.index(data.card.color))
                 if(data.card.value-1 != 4):
                     self.newStates(data.card.value, colors.index(data.card.color))
@@ -255,8 +272,19 @@ class Player(object):
                         self.teammates[data.lastPlayer].append(tuple)
         elif(type(data) is GameData.ServerHintData ):  ##hint has been given, update local cards
             if data.destination == self.name:
+                redo =0
                 for i in range(len(self.hand)):
-                    self.hand[i].calcHint(data, i, self.deckAvailableSelf)                  #need to update all cards and available cards
+                    self.hand[i].calcHint(data, i, self.deckAvailableSelf)     #need to update all cards and available cards
+                    if self.hand[i].probs.max() == 1.0 and memory[i] != 1:
+                        memory[i]=1
+                        redo=1
+                        self.deckAvailableSelf[self.hand[i].value-1, colors.index(self.hand[i].color)] -= 1
+                if redo:
+                    for i in range(len(self.hand)):
+                        self.hand[i].calcProb(self.deckAvailableSelf)
+                    for player in self.teammates:
+                        for c in self.teammates[player]:
+                            c[2].calcProb(deckAvailableOthers)
             else:
                 for i in range(len(self.hand)):
                     self.teammates[data.destination][i][2].calcHint(data, i, deckAvailableOthers)
@@ -506,7 +534,8 @@ class Player(object):
                 "value": 0,
                 "color":""
             }
-
+        groupMoves = []
+        effectiveMoves = []
         move = moveType.copy()
 
         for card in self.hand:
@@ -590,10 +619,46 @@ class Player(object):
                             move["value"]=cardTmp.value
                             move["color"]=cardTmp.color
                             population.append(move)
+        
+        for i in range(len(self.hand)):
+            groupMoves = list(filter(lambda m : m["card"] == i and m["type"] == "play", population))
+            meeehPlay = {
+                "card":i,
+                "type":"play",
+                "critical":[],
+                "chance":[],
+                "valcol":[]
+            }
+            for mel in groupMoves:
+                meeehPlay["critical"].append(mel["critical"])
+                meeehPlay["chance"].append(mel["chance"])
+                meeehPlay["valcol"].append((mel["value"], mel["color"]))
+            if len(groupMoves) != 0:
+                effectiveMoves.append(copy.deepcopy(meeehPlay))
+            groupMoves.clear()
+            groupMoves = list(filter(lambda m : m["card"] == i and m["type"] == "discard", population))
+            meeehDiscard = {
+                "card":i,
+                "type":"discard",
+                "critical":[],
+                "chance":[],
+                "valcol": []
+            }
+            for mel in groupMoves:
+                meeehDiscard["critical"].append(mel["critical"])
+                meeehDiscard["chance"].append(mel["chance"])
+                meeehDiscard["valcol"].append((mel["value"], mel["color"]))
+            if len(groupMoves) != 0:
+                effectiveMoves.append(copy.deepcopy(meeehDiscard))
+            groupMoves.clear()
+        population.clear()
+        population.extend(copy.deepcopy(effectiveMoves))
+        effectiveMoves.clear()
+
 
     def discardIfAllCritical(self):
         global population
-        population.clear()
+        pop = []
         moveType = {
                 "card":0,
                 "type":"discard",
@@ -602,7 +667,8 @@ class Player(object):
                 "value": 0,
                 "color":""
             }
-
+        groupMoves = []
+        effectiveMoves = []
         move = moveType.copy()
 
         for card in self.hand:
@@ -612,7 +678,7 @@ class Player(object):
                 move["chance"]=1
                 move["value"]=card.value
                 move["color"]=card.color
-                population.append(copy.deepcopy(move))
+                pop.append(copy.deepcopy(move))
             elif card.value!=0 and card.color=="":
                 cardTmp = copy.deepcopy(card)
                 for color in colors:
@@ -622,7 +688,7 @@ class Player(object):
                     move["chance"]=cardTmp.probs[cardTmp.value-1, colors.index(cardTmp.color)]
                     move["value"]=cardTmp.value
                     move["color"]=cardTmp.color
-                    population.append(copy.deepcopy(move))
+                    pop.append(copy.deepcopy(move))
             elif card.value==0 and card.color!="":
                 cardTmp = copy.deepcopy(card)
                 for i in range(5):
@@ -632,7 +698,7 @@ class Player(object):
                     move["chance"]=cardTmp.probs[cardTmp.value-1, colors.index(cardTmp.color)]
                     move["value"]=cardTmp.value
                     move["color"]=cardTmp.color
-                    population.append(copy.deepcopy(move))
+                    pop.append(copy.deepcopy(move))
             elif card.value==0 and card.color=="":
                 cardTmp = copy.deepcopy(card)
                 for i in range(5):
@@ -644,7 +710,26 @@ class Player(object):
                         move["chance"]=cardTmp.probs[cardTmp.value-1, colors.index(cardTmp.color)]
                         move["value"]=cardTmp.value
                         move["color"]=cardTmp.color
-                        population.append(copy.deepcopy(move))
+                        pop.append(copy.deepcopy(move))
+        for i in range(len(self.hand)):
+            groupMoves = list(filter(lambda m : m["card"] == i, pop))
+            meeehDiscard = {
+                "card":i,
+                "type":"discard",
+                "critical":[],
+                "chance":[],
+                "valcol": []
+            }
+            for mel in groupMoves:
+                meeehDiscard["critical"].append(1)
+                meeehDiscard["chance"].append(mel["chance"])
+                meeehDiscard["valcol"].append((mel["value"], mel["color"]))
+            if len(groupMoves) != 0:
+                effectiveMoves.append(copy.deepcopy(meeehDiscard))
+            groupMoves.clear()
+        population.extend(copy.deepcopy(effectiveMoves))
+        pop.clear()
+        effectiveMoves.clear()
 
     def play(self):
 

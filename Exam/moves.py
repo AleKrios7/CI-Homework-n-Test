@@ -1,11 +1,7 @@
 import numpy as np
 import copy
 
-def mask(probs, deck):
-        res2 = np.ma.make_mask(probs)
-        res3 = np.ma.masked_array(deck, np.invert(res2), fill_value=0)
-        return res3.filled()
-        
+colors = ["red","white","blue","yellow","green"]
 
 def selectMoves(population, hintMoves, hint, errors, hand, states):
 
@@ -18,20 +14,23 @@ def selectMoves(population, hintMoves, hint, errors, hand, states):
     #e = (5 + errors*7)/(5 - errors) 
     e = 3**errors +1
 
+    if hint == 0:
+        population = list(filter(lambda n : n["type"] == "play", population))
     population = sorted(population, key = lambda p: (p["card"], p["type"]), reverse = False)
-    playMoves = playCard(population, hand, e, p, hint)
-    playMoves = sorted(playMoves, key = lambda p: p["reward"], reverse = True)
+    population = playCard(population, hand, e, p, hint, states)
+    population = sorted(population, key = lambda p: p["reward"], reverse = True)
     
     if hint != 8:
         hintMoves = sendHint(hintMoves, p)
         hintMoves = sorted(hintMoves, key = lambda p: p["reward"], reverse = True)
         
-    availableMoves.extend(playMoves)
+    availableMoves.extend(population)
     availableMoves.extend(hintMoves)
     availableMoves = sorted(availableMoves, key = lambda p: p["reward"], reverse = True)
-    availableMoves = list(filter(lambda b : availableMoves[0]["reward"]-b["reward"]<=1.5, availableMoves))
+    availableMoves = list(filter(lambda b : availableMoves[0]["reward"]-b["reward"]<=1, availableMoves))
     probsMoves = []
     total = 0
+
     offset = availableMoves[-1]["reward"]
     if availableMoves[0]["reward"] > 0 and offset < 0:
         availableMoves = list(filter(lambda m : m["reward"]>0.0, availableMoves))
@@ -50,61 +49,62 @@ def selectMoves(population, hintMoves, hint, errors, hand, states):
 
     return move
 
-def playCard(population, hand, e, p, hint):
+def playCard(population, hand, e, p, hint, states):
+
+    global colors
     
     # move = {
-    #             "card":0,
-    #             "type":"",
-    #             "critical":0,
-    #             "chance":0,
+    #             "card": int, -> index
+    #             "type": string, -> play o discard
+    #             "critical":[int], -> array di hint
+    #             "chance":[float], -> array di probs
+    #             "valcol": [(int,string)] -> array di tuple int,string         
     #         }
     #bonuses and penalties
-    losePoints = 0
-    playmoves = []
 
-    for key in population:
-        if key["type"] == "play":
-            if len(playmoves)>0 and playmoves[-1]["card"] == key["card"] and playmoves[-1]["type"]=="play":
-                playmoves[-1]["chance"]+=key["chance"]
-                b=-1
-            elif len(playmoves)>1 and playmoves[-2]["card"] == key["card"] and playmoves[-1]["type"]=="play":
-                playmoves[-2]["chance"]+=key["chance"]
-                b=-2
-            else:
-                playmoves.append(copy.deepcopy(key))
-                b=-1
-
-            if key["critical"] == 1:
-                losePoints = (6 - key["value"])*key["chance"]
-                
-                if key["value"] == 5:
-                    playmoves[b]["reward"] = playmoves[b]["chance"]*(1 + p*2)-(1-playmoves[b]["chance"])*e*(losePoints+1)
-                else:
-                    playmoves[b]["reward"] = playmoves[b]["chance"](1 + p*2)-(1-playmoves[b]["chance"])*e*(losePoints+1)
-            else:
-                if key["value"] == 5:
-                    playmoves[b]["reward"] = playmoves[b]["chance"]*(2 + p*2)-(1-playmoves[b]["chance"])*e
-                else:
-                    playmoves[b]["reward"] = playmoves[b]["chance"]*(2 + p*2)-(1-playmoves[b]["chance"])*e
-        elif key["type"] == "discard" and hint!=0:
-            if len(playmoves)>0 and playmoves[-1]["card"] == key["card"] and playmoves[-1]["type"]=="discard":
-                playmoves[-1]["chance"]+=key["chance"]
-                b=-1
-            elif len(playmoves)>1 and playmoves[-2]["card"] == key["card"] and playmoves[-1]["type"]=="discard":
-                playmoves[-2]["chance"]+=key["chance"]
-                b=-2
-            else:
-                b=-1
-                playmoves.append(copy.deepcopy(key))
-
+    for mov in population:
+        if mov["type"] == "play":
+            totreward = 0
+            totlosePoints = 0
+            #playmoves[b]["reward"] = playmoves[b]["chance"]*(1 + p*2)-(1-playmoves[b]["chance"])*e*(losePoints+1)
             
-            if key["critical"] == 1:
-                losePoints = 6 - hand[key["card"]].value
-                playmoves[b]["reward"] = playmoves[b]["chance"]*(p)-(1-playmoves[b]["chance"])*(losePoints+1)
-            else:
-                playmoves[b]["reward"] = playmoves[b]["chance"]*(p)-(1-playmoves[b]["chance"])
+            for i in range(len(mov["valcol"])):
+                if mov["valcol"][i][0] == 5:
+                    totreward += (1+p) * mov["chance"][i]
+                else:
+                    totreward += mov["chance"][i]
+            for i in range(5):
+                for j in range(5):
+                    notInMove = True
+                    for k in mov["valcol"]:
+                        if (k[0] == i+1 and k[1] == colors[j]):
+                            notInMove = False
+                    if notInMove and states[i,j] > 2 and hand[mov["card"]].probs[i,j]!=0:
+                        totlosePoints += (6- (i+1))*(hand[mov["card"]].probs[i,j])
+            mov["reward"] = totreward - totlosePoints - (1-sum(mov["chance"]))*e
+            if sum(mov["chance"]) == 1:
+                mov["reward"] += 2
+        elif hint != 0:
+            totreward = 0
+            totlosePoints = 0
+            for i in range(len(mov["valcol"])):
+                if mov["critical"][i] == 1:
+                    totreward += (p - (8 - mov["valcol"][i][0]))*mov["chance"][i]  # 6 è da cambiare in un numero più alto
+                else:
+                    totreward += p*mov["chance"][i]
 
-    return playmoves
+            for i in range(5):
+                for j in range(5):
+                    notInMove = True
+                    for k in mov["valcol"]:
+                        if (k[0] == i+1 and k[1] == colors[j]):
+                            notInMove = False
+                    if notInMove and states[i,j] > 2 and hand[mov["card"]].probs[i,j]!=0:
+                        totlosePoints += (6- (i+1))*(hand[mov["card"]].probs[i,j])
+            #playmoves[b]["reward"] = playmoves[b]["chance"]*(p)-(1-playmoves[b]["chance"])*(losePoints+1)
+            mov["reward"] = totreward - totlosePoints
+    return population
+
     
 def sendHint(hintMoves, p):
     
@@ -119,28 +119,18 @@ def sendHint(hintMoves, p):
     #         "cardValue":[],
     #         "cardColor": []
     #         }
-    criticalSignal = 0
-    bonusPoints = 0
 
     for m in hintMoves:
         tot = 0
         pointsaved = 0
         aff = 1
         for i in range(m["cards"]):
-            if m["critical"][i] == 1 and m["playable"][i] == 1:
-                pointsaved += 6 - m["cardValue"][i] + 1 +2*p*(1 if m["cardValue"][i] == 5 else 0)
-                bonusPoints += 1
-                
-            elif m["critical"][i] == 1:
+            if m["critical"][i] == 1:
                 pointsaved += 6 - m["cardValue"][i]
-                bonusPoints+=.5
-
-            else:
-                if m["type"] =="color" and m["playable"][i]==0:
-                    bonusPoints= -.7
-                elif m["type"] =="color" and m["playable"][i]==1:
-                    bonusPoints = -.3
-                pointsaved += 1 +2*p*(m["cardValue"] == 5)
-        tot += aff * pointsaved - 2*p + bonusPoints
+            if m["playable"][i] == 1:
+                pointsaved += 1 + p*int(m["cardValue"][i] == 5)
+        if pointsaved == 0:
+            pointsaved = -0.3
+        tot = aff * pointsaved - p
         m["reward"] = tot
     return hintMoves
